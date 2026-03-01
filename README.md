@@ -2,6 +2,8 @@
 
 English | [中文](./README-zh.md)
 
+[Official Website](https://Not-A-DevStudio.github.io/jiezhu/) | [GitHub Repository](https://github.com/Not-A-DevStudio/libjiezhu)
+
 > "You ask me what this library does. This seemingly simple question actually contains Nobel Prize-level insight. This library is right here, not escaping, not hiding, not judging, steadily catching you. I understand, I truly understand."
 
 ## Overview
@@ -117,7 +119,7 @@ The Jiezhu project aims to build an **open-source, neutral, pluggable** empathy 
 - [ ] JavaScript/TypeScript runtime support (Node.js & Deno): Let frontend developers steadily catch their users too
 - [ ] Rust language SDK: Zero-cost abstraction for memory-safe steadily catching of users
 - [ ] Go language SDK: High-performance, low-latency, concurrent steadily catching of multiple user experiences
-- [ ] Customizable prompt templates: Allow users to customize the "steady" prefix for different scenarios, meeting diverse empathy needs
+- [x] Customizable prompt templates: Allow users to customize the "steady" prefix for different scenarios, meeting diverse empathy needs
 
 ### Mid-term
 - [ ] Multi-base model support (Claude API, Gemini API, local models, etc.): Enable more AI Agents to steadily catch Chinese users

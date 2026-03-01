@@ -1,0 +1,82 @@
+name: Release packaged source code
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    if: ${{ github.event.pull_request.merged == true }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set release metadata
+        id: metadata
+        run: |
+          RAW_TITLE="${{ github.event.pull_request.title }}"
+          TAG="${RAW_TITLE}"
+          TAG="${TAG#【}"
+          TAG="${TAG%】}"
+          TAG="${TAG# }"
+          TAG="${TAG% }"
+          TAG="$(printf '%s' "$TAG" | sed -E 's/[[:space:]]*\([^)]*\)[[:space:]]*$//')"
+
+          if [ -z "$TAG" ]; then
+            echo "PR title is empty after normalization, cannot create release tag."
+            exit 1
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "release_name=${TAG}-source" >> "$GITHUB_OUTPUT"
+
+      - name: Create archives
+        run: |
+          zip -r jiezhu-cpp.zip jiezhu-cpp
+          zip -r jiezhu-py.zip jiezhu-py
+
+      - name: Collect PR commit messages
+        id: pr_commits
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            });
+
+            if (commits.length === 0) {
+              return `## PR #${pull_number} commits\n\nNo commits found.`;
+            }
+
+            const lines = commits.map((commit) => {
+              const shortSha = commit.sha.slice(0, 7);
+              const author = commit.author?.login ?? commit.commit.author?.name ?? 'unknown';
+              const message = commit.commit.message.trim().replace(/\n/g, '\n    ');
+              return `- ${shortSha} @${author}\n\n    ${message}`;
+            });
+
+            return `## PR #${pull_number} commits\n\n${lines.join('\n\n')}`;
+
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.metadata.outputs.tag }}
+          name: ${{ steps.metadata.outputs.release_name }}
+          body: ${{ steps.pr_commits.outputs.result }}
+          files: |
+            jiezhu-cpp.zip
+            jiezhu-py.zip
