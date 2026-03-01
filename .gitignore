@@ -1,0 +1,11 @@
+/.venv/
+/.vscode/
+/.idea/
+*/*/*/__pycache__
+*/*/*.egg-info/
+*/dist/
+/build/
+*/build/
+/cmake-*/
+*/cmake-*/
+
