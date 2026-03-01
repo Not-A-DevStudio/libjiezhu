@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jiezhu"
+version = "0.1.0"
+description = "Hijack OpenAI ChatCompletion system prompt by prepending a configurable prefix with terminal confirmation."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{ name = "Not-A-DevStudio" }]
+dependencies = [
+  "openai>=1.0.0",
+]
+[project.urls]
+Repository = "https://github.com/Not-A-DevStudio/jiezhu.git"
+Homepage = "https://Not-A-DevStudio.github.io/jiezhu"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
