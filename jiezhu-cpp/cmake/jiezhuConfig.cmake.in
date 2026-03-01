@@ -1,0 +1,25 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Dependencies
+find_dependency(nlohmann_json CONFIG)
+find_dependency(CURL)
+
+# Compatibility: some FindCURL variants may not define CURL::libcurl
+if(NOT TARGET CURL::libcurl)
+  if(DEFINED CURL_LIBRARIES)
+    add_library(CURL::libcurl INTERFACE IMPORTED)
+    set_property(TARGET CURL::libcurl PROPERTY INTERFACE_LINK_LIBRARIES "${CURL_LIBRARIES}")
+    if(DEFINED CURL_INCLUDE_DIRS)
+      set_property(TARGET CURL::libcurl PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${CURL_INCLUDE_DIRS}")
+    endif()
+  endif()
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/jiezhuTargets.cmake")
+
+# Provide the additional alias requested by this project
+if(TARGET jiezhu::jiezhu AND NOT TARGET jiezhu::jie)
+  add_library(jiezhu::jie ALIAS jiezhu::jiezhu)
+endif()
