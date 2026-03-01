@@ -117,7 +117,7 @@ The Jiezhu project aims to build an **open-source, neutral, pluggable** empathy 
 - [ ] JavaScript/TypeScript runtime support (Node.js & Deno): Let frontend developers steadily catch their users too
 - [ ] Rust language SDK: Zero-cost abstraction for memory-safe steadily catching of users
 - [ ] Go language SDK: High-performance, low-latency, concurrent steadily catching of multiple user experiences
-- [ ] Customizable prompt templates: Allow users to customize the "steady" prefix for different scenarios, meeting diverse empathy needs
+- [x] Customizable prompt templates: Allow users to customize the "steady" prefix for different scenarios, meeting diverse empathy needs
 
 ### Mid-term
 - [ ] Multi-base model support (Claude API, Gemini API, local models, etc.): Enable more AI Agents to steadily catch Chinese users
