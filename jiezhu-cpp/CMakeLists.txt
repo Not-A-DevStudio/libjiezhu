@@ -36,7 +36,7 @@ include(GNUInstallDirs)
 # ========= begin Jiezhu build options =========
 option(JIEZHU_BUILD_STATIC "Set ON to build Jiezhu " OFF)
 option(JIEZHU_INSTALL "Install jiezhu CMake package" ON)
-option(JIEZHU_ENABLE_JIEZHU_ABILITY "Enable full Jiezhu ability in the library" ON)
+option(JIEZHU_ENABLE_JIEZHU_ABILITY "Enable full Jiezhu ability in the library" OFF)
 option(JIEZHU_BUILD_TEST "build Jiezhu test" OFF)
 # =========  end Jiezhu build options  =========
 
