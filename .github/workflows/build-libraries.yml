@@ -1,12 +1,14 @@
-name: Release packaged source code and binaries
+name: Build Libraries
 
 on:
   pull_request:
-    types: [closed]
-    branches: [main]
+    types:
+      - opened
+      - edited
+      - reopened
 
 permissions:
-    contents: read
+  contents: write
 
 jobs:
   build-cpp-binaries:
@@ -99,61 +101,3 @@ jobs:
           name: py-wheel-linux
           path: jiezhu-py/dist/*.whl
           retention-days: 7
-
-  package-and-release:
-    if: ${{ github.event.pull_request.merged == true }}
-    needs: [build-cpp-binaries, build-py-wheel-linux]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set release metadata
-        id: metadata
-        run: |
-          RAW_TITLE="${{ github.event.pull_request.title }}"
-          TAG="${RAW_TITLE}"
-          TAG="${TAG#【}"
-          TAG="${TAG%】}"
-          TAG="${TAG# }"
-          TAG="${TAG% }"
-          TAG="$(printf '%s' "$TAG" | sed -E 's/[[:space:]]*\([^)]*\)[[:space:]]*$//')"
-
-          if [ -z "$TAG" ]; then
-            echo "PR title is empty after normalization, cannot create release tag."
-            exit 1
-          fi
-
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "release_name=${TAG}-packages" >> "$GITHUB_OUTPUT"
-
-      - name: Create archives
-        run: |
-          zip -r jiezhu-cpp.zip jiezhu-cpp
-          zip -r jiezhu-py.zip jiezhu-py
-
-      - name: Download compiled binary packages
-        uses: actions/download-artifact@v4
-        with:
-          pattern: cpp-bin-*
-          path: release-assets
-          merge-multiple: true
-
-      - name: Download jiezhu-py wheel
-        uses: actions/download-artifact@v4
-        with:
-          pattern: py-wheel-*
-          path: release-assets
-          merge-multiple: true
-
-      - name: Create release and upload assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.metadata.outputs.tag }}
-          name: ${{ steps.metadata.outputs.release_name }}
-          generate_release_notes: true
-          files: |
-            jiezhu-cpp.zip
-            jiezhu-py.zip
-            release-assets/*

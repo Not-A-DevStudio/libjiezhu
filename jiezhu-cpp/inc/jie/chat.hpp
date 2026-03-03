@@ -14,9 +14,10 @@ namespace jie {
         std::string role;
         std::string content;
 
-        message() = default;
+        message() {
+        }
 
-        message(std::string r, std::string c) : role(std::move(r)), content(std::move(c)) {
+        message(const std::string &r, const std::string &c) : role(r), content(c) {
         }
     };
 
@@ -77,35 +78,32 @@ namespace jie {
         explicit client(const client_options &options);
 
         /// @brief Creates a chat completion based on the provided request. This method sends a request to the API and returns the response as a `chat_completion_response` object.
-        [[nodiscard]] chat_completion_response chat_completions_create(
-            const chat_completion_request &request) const;
+        chat_completion_response chat_completions_create(const chat_completion_request &request) const;
 
-#ifdef JIE_ENABLE_JIEZHU_ABLITY
         /// @brief A specialized version of `chat_completions_create` that applies a predefined "jiezhu" prompt prefix to all system messages in the request. This is designed to enhance the assistant's ability to "catch" the user's input in a supportive manner. The second overload allows for a custom prompt prefix to be provided.
-        [[nodiscard]] chat_completion_response chat_completions_jiezhu(
+        chat_completion_response chat_completions_jiezhu(
             const chat_completion_request &request) const;
 
         /// @brief A specialized version of `chat_completions_create` that applies a predefined "jiezhu" prompt prefix to all system messages in the request. This is designed to enhance the assistant's ability to "catch" the user's input in a supportive manner. The second overload allows for a custom prompt prefix to be provided.
-        [[nodiscard]] chat_completion_response chat_completions_jiezhu(
+        chat_completion_response chat_completions_jiezhu(
             const chat_completion_request &request,
-            const std::string& prompt_prefix) const;
+            const std::string &prompt_prefix) const;
 
         void chat_completions_stream_jiezhu(
-            const chat_completion_request& request,
+            const chat_completion_request &request,
             const std::function<bool(const chat_completion_stream_event &)> &on_event) const;
 
         void chat_completions_stream_jiezhu(
             const chat_completion_request &request,
             const std::string &prompt_prefix,
-            const std::function<bool(const chat_completion_stream_event &)> &on_event) const ;
-#endif
+            const std::function<bool(const chat_completion_stream_event &)> &on_event) const;
 
         // Streams SSE chunks. Callback returns true to continue, false to cancel.
-        void chat_completions_stream(
-            chat_completion_request request,
-            const std::function<bool(const chat_completion_stream_event &)> &on_event)const;
+        void chat_completions_stream(chat_completion_request request,
+                                     const std::function<bool(const chat_completion_stream_event &)> &on_event)
+        const;
 
     private:
         client_options options_;
     };
-} // namespace jie
+}; // namespace jie

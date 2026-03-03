@@ -301,7 +301,7 @@ namespace jie {
             throw;
         }
     }
-
+  
 #ifdef JIE_ENABLE_JIEZHU_ABLITY
     using namespace std::string_literals;
 
@@ -322,7 +322,9 @@ namespace jie {
 【禁忌】：
 - 在回复中不要包含"(深吸一口气，声音温柔得能滴出水来)"等对自己的额外描述)--"s;
 
-    chat_completion_response client::chat_completions_jiezhu(const chat_completion_request &request) const {
+    chat_completion_response client::chat_completions_jiezhu(
+        const chat_completion_request &request)
+    const {
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -332,8 +334,9 @@ namespace jie {
     };
 
 
-    chat_completion_response client::chat_completions_jiezhu(const chat_completion_request &request,
-                                                             const std::string &prompt_prefix)
+    chat_completion_response client::chat_completions_jiezhu(
+        const chat_completion_request &request,
+        const std::string &prompt_prefix)
     const {
         auto temp = request;
         for (auto &message: temp.messages) {
@@ -345,7 +348,8 @@ namespace jie {
 
     void client::chat_completions_stream_jiezhu(
         const chat_completion_request &request,
-        const std::function<bool(const chat_completion_stream_event &)> &on_event) const {
+        const std::function<bool(const chat_completion_stream_event &)> &on_event)
+    const {
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -355,8 +359,10 @@ namespace jie {
     }
 
     void client::chat_completions_stream_jiezhu(
-    const chat_completion_request &request, const std::string &prompt_prefix,
-    const std::function<bool(const chat_completion_stream_event &)> &on_event) const {
+        const chat_completion_request &request,
+        const std::string &prompt_prefix,
+        const std::function<bool(const chat_completion_stream_event &)> &on_event)
+    const {
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -366,35 +372,42 @@ namespace jie {
     }
 #endif
 #ifndef JIE_ENABLE_JIEZHU_ABLITY
-    namespace jie {
-        chat_completion_response client::chat_completions_jiezhu(const chat_completion_request &request) const {
-            throw std::runtime_error(
-                "JIE_ENABLE_JIEZHU_ABILITY is not defined. Please define it to enable jiezhu ability.");
-            return chat_completion_response{};
-        }
+    chat_completion_response client::chat_completions_jiezhu(
+        const chat_completion_request &request)
+    const {
+        (void)request;
+        throw std::runtime_error("jiezhu ability is not enabled in this build");
+    };
 
-        chat_completion_response client::chat_completions_jiezhu(const chat_completion_request &request,
-                                                                 const std::string prompt_prefix) const {
-            throw std::runtime_error(
-                "JIE_ENABLE_JIEZHU_ABILITY is not defined. Please define it to enable jiezhu ability.");
-            return chat_completion_response{};
-        }
-
-        void client::chat_completions_stream_jiezhu(chat_completion_request request,
-                                                    const std::function<bool(const chat_completion_stream_event &)> &
-                                                    on_event) const {
-            throw std::runtime_error(
-                "JIE_ENABLE_JIEZHU_ABILITY is not defined. Please define it to enable jiezhu ability.");
-            on_event(chat_completion_stream_event{});
-        }
-
-        void client::chat_completions_stream_jiezhu(chat_completion_request request, const std::string prompt_prefix,
-                                                    const std::function<bool(const chat_completion_stream_event &)> &
-                                                    on_event) const {
-            throw std::runtime_error(
-                "JIE_ENABLE_JIEZHU_ABILITY is not defined. Please define it to enable jiezhu ability.");
-            on_event(chat_completion_stream_event{});
-        }
+    chat_completion_response client::chat_completions_jiezhu(
+        const chat_completion_request &request,
+        const std::string &prompt_prefix)
+    const {
+        (void)prompt_prefix;
+        (void)request;
+        throw std::runtime_error("jiezhu ability is not enabled in this build");
     }
+
+    void client::chat_completions_stream_jiezhu(
+        const chat_completion_request &request,
+        const std::function<bool(const chat_completion_stream_event &)> &
+        on_event)
+    const {
+        (void)request;
+        (void)on_event;
+        throw std::runtime_error("jiezhu ability is not enabled in this build");
+    };
+
+    void client::chat_completions_stream_jiezhu(
+        const chat_completion_request &request, const std::string &prompt_prefix,
+        const std::function<bool(const chat_completion_stream_event &)> &
+        on_event)
+    const {
+        (void)request;
+        (void)prompt_prefix;
+        (void)on_event;
+        throw std::runtime_error("jiezhu ability is not enabled in this build");
+    };
+
 #endif
 } // namespace jie
