@@ -25,6 +25,20 @@ cd libjiezhu/jiezhu-py
 pip install -e ./
 ```
 
+Given that this repository contains both C++ and Python libraries, you may also find a **packed Python source file** of this repository.
+
+### 3. Install from Pre-built Binary Package
+
+1. Go to the [Release page](https://github.com/Not-A-DevStudio/libjiezhu/releases) of this repository, and find the latest release.
+
+2. Download the pre-built binary package for Python (e.g., `jiezhu-0.1.0-py3-none-any.whl`).
+
+3. Install the downloaded package using pip:
+
+```bash
+pip install path/to/downloaded/wheel.whl
+```
+
 ## Quick Start
 
 ```python
