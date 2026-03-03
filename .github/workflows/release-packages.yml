@@ -2,15 +2,15 @@ name: Release packaged source code and binaries
 
 on:
   pull_request:
-    types: [closed]
+    types: [opened, edited, reopened, synchronize, closed]
     branches: [main]
 
 permissions:
-    contents: read
+    contents: write
 
 jobs:
   build-cpp-binaries:
-    if: ${{ github.event.pull_request.merged == true }}
+    if: ${{ github.event.action != 'closed' || github.event.pull_request.merged == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -76,7 +76,7 @@ jobs:
           retention-days: 7
 
   build-py-wheel-linux:
-    if: ${{ github.event.pull_request.merged == true }}
+    if: ${{ github.event.action != 'closed' || github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
 
     steps:
