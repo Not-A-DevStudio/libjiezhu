@@ -35,7 +35,7 @@ namespace jie {
         // Forward-compat: allow callers to pass any extra OpenAI-compatible fields.
         nlohmann::json extra = nlohmann::json::object();
 
-        nlohmann::json to_json() const;
+        [[nodiscard]] nlohmann::json to_json() const;
     };
 
     /// @brief Represents the response from a chat completion request. It contains the raw JSON response from the API, as well as convenience accessors for commonly used fields like `id` and `model`. The `first_content()` method provides a quick way to access the content of the first message in the choices array, if available.
@@ -47,7 +47,7 @@ namespace jie {
         std::string model;
 
         // Returns choices[0].message.content if present, else empty.
-        std::string first_content() const;
+        [[nodiscard]] std::string first_content() const;
     };
 
     /// @brief Represents an event in the chat completion streaming process. It contains the raw JSON chunk received from the stream, as well as best-effort extracted fields such as `delta_role`, `delta_content`, and `finish_reason`. The `done` flag indicates whether the stream has finished.
