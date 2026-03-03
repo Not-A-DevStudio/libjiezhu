@@ -14,7 +14,7 @@ The current public headers of this library:
 
 All dependencies are included under folder `jiezhu-cpp/third_party`: 
 
-- curl-8.17.0: CHANGE has made to its build options to auto enable `schannel` on Windows, so you don't need to worry about OpenSSL dependency when building on Windows.   
+- curl-8.17.0: CHANGES have made to its build options to auto enable `schannel` on Windows, so you don't need to worry about OpenSSL dependency when building on Windows.   
 - nlohmann_json-3.12.0
 
 ## Quick Navigation
