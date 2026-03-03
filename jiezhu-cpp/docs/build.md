@@ -10,6 +10,8 @@ The repository contains two levels of CMake:
 - Top-level [CMakeLists.txt](../CMakeLists.txt): includes `cpp/` as a subproject (`FetchContent`)
 - C++ library itself [cpp/CMakeLists.txt](../CMakeLists.txt): generates the `jiezhu` library and optionally installs exports
 
+You may also find a **pre-built binary package in the Release page** of this repository.
+
 ## 1) Build Only the C++ Library (Recommended)
 
 Run the following commands in the root directory of the repository:

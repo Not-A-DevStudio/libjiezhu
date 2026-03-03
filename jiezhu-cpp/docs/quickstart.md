@@ -8,7 +8,18 @@ The following examples demonstrate:
 
 > Note: This library only handles HTTP calls and JSON processing. It does not manage your API Key. Please read it from environment variables/configuration files and pass it in.
 
-## 1) Including via CMake
+## 0) Get the source code for the library 
+
+1. Clone whole repository:
+
+```bash
+git clone https://github.com/Not-A-DevStudio/libjiezhu.git
+cd libjiezhu
+````
+
+2. Or just download the latest release from [GitHub Releases](https://github.com/Not-A-DevStudio/libjiezhu/releases)
+
+You can also see pre-built binaries in the release page.
 
 If you have installed this library (`cmake --install`) and exported the CMake package, you can:
 
