@@ -19,7 +19,7 @@ git clone https://github.com/Not-A-DevStudio/libjiezhu.git
 cd libjiezhu/jiezhu-py
 ```
 
-2. Under the root directory of this python library, run:
+Under the root directory of this python library, run:
 
 ```bash
 pip install -e ./
@@ -41,6 +41,8 @@ pip install path/to/downloaded/wheel.whl
 
 ## Quick Start
 
+### OpenAI Support
+
 ```python
 from jiezhu import install
 install(require_confirm=True) # Call this function once at the beginning of your program to enable the library.
@@ -59,7 +61,37 @@ resp = client.chat.completions.create(
 
 you will see that the system prompt prefix has been automatically prepended to the messages, which encourages the model to "catch" the user input steadily.
 
+### Claude / Anthropic Support
+
+Jiezhu also supports the [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python). Install the optional dependency:
+
+```bash
+pip install jiezhu[claude]
+```
+
+Then use it the same way — `install()` patches both OpenAI and Anthropic SDKs:
+
+```python
+from jiezhu import install
+install(require_confirm=False)
+
+from anthropic import Anthropic
+client = Anthropic()
+
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=1024,
+    system="You are a helpful assistant.",
+    messages=[
+        {"role": "user", "content": "how are you?"},
+    ],
+)
+```
+
+The prefix is prepended to Claude's top-level `system` parameter (supports both string and content-block list formats). If the `anthropic` package is not installed, Claude patching is silently skipped.
+
 ## Customization
+
 You can customize the system prompt prefix by passing a `prefix_text` argument to the `install()` function
 
 > Attention: if your environment does not support interreactive input (e.g. Jupyter Notebook), please set `require_confirm=False` when calling `install()`, otherwise the library will not work.
@@ -68,7 +100,7 @@ You can customize the system prompt prefix by passing a `prefix_text` argument t
 
 ### Security
 
-Although this library **does hijack the OpenAI Python SDK**, it only modifies the `messages` field of the chat completion request by prepending a system prompt prefix. It **require a confirmation from the user before hijacking**, and the user can choose to auto-confirm by setting `require_confirm=False`. 
+Although this library **does hijack the OpenAI Python SDK**, it only modifies the `messages` field of the chat completion request by prepending a system prompt prefix. It **require a confirmation from the user before hijacking**, and the user can choose to auto-confirm by setting `require_confirm=False`.
 
 Anytime this library modifies the request and no matter how `require_confirm` is set to `False` or `True`, it will **print the alert message to the console**.
 

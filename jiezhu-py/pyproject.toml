@@ -13,6 +13,11 @@ authors = [{ name = "Not-A-DevStudio" }]
 dependencies = [
   "openai>=1.0.0",
 ]
+
+[project.optional-dependencies]
+claude = ["anthropic>=0.39.0"]
+test = ["pytest>=7.0", "pytest-asyncio"]
+
 [project.urls]
 Repository = "https://github.com/Not-A-DevStudio/jiezhu.git"
 Homepage = "https://Not-A-DevStudio.github.io/jiezhu"
