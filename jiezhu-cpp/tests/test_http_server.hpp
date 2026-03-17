@@ -1,11 +1,10 @@
-#include <catch2/catch_test_macros.hpp>
-
-#include <jie/chat.hpp>
+#pragma once
 
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <cctype>
 #include <cstring>
 #include <functional>
 #include <mutex>
@@ -13,7 +12,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
-#include <vector>
+#include <utility>
 
 #if defined(_WIN32)
 	#ifndef NOMINMAX
@@ -29,7 +28,6 @@
 			closesocket(s);
 		}
 	}
-	static int last_socket_error() { return WSAGetLastError(); }
 #else
 	#include <arpa/inet.h>
 	#include <netinet/in.h>
@@ -43,10 +41,9 @@
 			::close(s);
 		}
 	}
-	static int last_socket_error() { return errno; }
 #endif
 
-namespace {
+namespace test_support {
 
 struct socket_runtime {
 	socket_runtime() {
@@ -63,18 +60,18 @@ struct socket_runtime {
 	}
 };
 
-static std::string to_lower_copy(std::string s) {
+inline std::string to_lower_copy(std::string s) {
 	for (char& ch : s) {
 		ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
 	}
 	return s;
 }
 
-static bool starts_with(std::string_view s, std::string_view prefix) {
+inline bool starts_with(std::string_view s, std::string_view prefix) {
 	return s.size() >= prefix.size() && s.substr(0, prefix.size()) == prefix;
 }
 
-static bool icontains(std::string_view haystack, std::string_view needle) {
+inline bool icontains(std::string_view haystack, std::string_view needle) {
 	std::string h(haystack);
 	std::string n(needle);
 	h = to_lower_copy(std::move(h));
@@ -82,9 +79,9 @@ static bool icontains(std::string_view haystack, std::string_view needle) {
 	return h.find(n) != std::string::npos;
 }
 
-static std::string build_http_response(std::string_view status,
-							std::string_view content_type,
-							std::string body) {
+inline std::string build_http_response(std::string_view status,
+								   std::string_view content_type,
+								   std::string body) {
 	std::string resp;
 	resp += "HTTP/1.1 ";
 	resp += status;
@@ -295,102 +292,4 @@ private:
 	std::size_t request_count_{0};
 };
 
-} // namespace
-
-TEST_CASE("chat_completions_create uses curl and parses JSON") {
-	tiny_http_server server([](const std::string&) {
-		const std::string body = R"({
-			"id":"test-id",
-			"model":"test-model",
-			"choices":[{"message":{"content":"hello"}}]
-		})";
-		return build_http_response("200 OK", "application/json", body);
-	});
-
-	jie::client_options opt;
-	opt.api_key = "test";
-	opt.base_url = std::string("http://127.0.0.1:") + std::to_string(server.port()) + "/v1";
-	opt.timeout_seconds = 5;
-
-	jie::client c(opt);
-	jie::chat_completion_request r;
-	r.model = "gpt-test";
-	r.messages.push_back({"user", "hi"});
-
-	jie::chat_completion_response resp = c.chat_completions_create(r);
-	REQUIRE(server.wait_for_request(std::chrono::milliseconds(1500)));
-	const std::string req = server.last_request();
-	REQUIRE(starts_with(req, "POST /v1/chat/completions "));
-	REQUIRE(icontains(req, "http/"));
-	REQUIRE(icontains(req, "content-type: application/json"));
-	REQUIRE(icontains(req, "accept: application/json"));
-	REQUIRE(resp.id == "test-id");
-	REQUIRE(resp.model == "test-model");
-	REQUIRE(resp.first_content() == "hello");
-}
-
-TEST_CASE("chat_completions_stream consumes SSE events") {
-	tiny_http_server server([](const std::string&) {
-		std::string sse;
-		sse += "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\n";
-		sse += "data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\n";
-		sse += "data: [DONE]\n\n";
-
-		// Note: we send as one body; curl callback will still parse by lines.
-		return build_http_response("200 OK", "text/event-stream", sse);
-	});
-
-	jie::client_options opt;
-	opt.api_key = "test";
-	opt.base_url = std::string("http://127.0.0.1:") + std::to_string(server.port()) + "/v1";
-	opt.timeout_seconds = 5;
-
-	jie::client c(opt);
-	jie::chat_completion_request r;
-	r.model = "gpt-test";
-	r.messages.push_back({"user", "hi"});
-
-	std::string all;
-	bool saw_done = false;
-	c.chat_completions_stream(r, [&](const jie::chat_completion_stream_event& ev) {
-		all += ev.delta_content;
-		if (ev.done) saw_done = true;
-		return true;
-	});
-
-	REQUIRE(server.wait_for_request(std::chrono::milliseconds(1500)));
-	const std::string req = server.last_request();
-	REQUIRE(starts_with(req, "POST /v1/chat/completions "));
-	REQUIRE(icontains(req, "accept: text/event-stream"));
-	REQUIRE(all == "Hello");
-	REQUIRE(saw_done);
-}
-
-TEST_CASE("non-2xx responses throw with body") {
-	tiny_http_server server([](const std::string&) {
-		return build_http_response("401 Unauthorized", "text/plain", "bad key");
-	});
-
-	jie::client_options opt;
-	opt.api_key = "test";
-	opt.base_url = std::string("http://127.0.0.1:") + std::to_string(server.port()) + "/v1";
-	opt.timeout_seconds = 5;
-
-	jie::client c(opt);
-	jie::chat_completion_request r;
-	r.model = "gpt-test";
-	r.messages.push_back({"user", "hi"});
-
-	try {
-		(void)c.chat_completions_create(r);
-		FAIL("expected exception");
-	} catch (const std::runtime_error& e) {
-		std::string msg = e.what();
-		REQUIRE(msg.find("HTTP 401") != std::string::npos);
-		REQUIRE(msg.find("bad key") != std::string::npos);
-	}
-
-	REQUIRE(server.wait_for_request(std::chrono::milliseconds(1500)));
-	const std::string req = server.last_request();
-	REQUIRE(starts_with(req, "POST /v1/chat/completions "));
-}
+} // namespace test_support
