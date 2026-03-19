@@ -80,6 +80,19 @@ namespace jie {
         /// @brief Creates a chat completion based on the provided request. This method sends a request to the API and returns the response as a `chat_completion_response` object.
         chat_completion_response chat_completions_create(const chat_completion_request &request) const;
 
+        /// @brief Creates a completion using Anthropic Claude Messages API style payload.
+        /// It converts system-role messages into top-level `system`, keeps non-system messages
+        /// in `messages`, and sends the request to `{base_url}/messages`.
+        chat_completion_response chat_completions_create_anthropic(
+            const chat_completion_request &request) const;
+
+        chat_completion_response chat_completions_jiezhu_anthropic(
+            const chat_completion_request &request,
+            const std::string &prompt_prefix) const;
+
+        chat_completion_response chat_completions_jiezhu_anthropic(
+            const chat_completion_request &request) const;
+
         /// @brief A specialized version of `chat_completions_create` that applies a predefined "jiezhu" prompt prefix to all system messages in the request. This is designed to enhance the assistant's ability to "catch" the user's input in a supportive manner. The second overload allows for a custom prompt prefix to be provided.
         chat_completion_response chat_completions_jiezhu(
             const chat_completion_request &request) const;
