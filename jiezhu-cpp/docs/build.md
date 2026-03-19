@@ -57,6 +57,8 @@ find_package(jiezhu CONFIG REQUIRED)
 target_link_libraries(app PRIVATE jiezhu::jie)
 ```
 
+NOTE: installing Jiezhu is not tested, if you want to use this method, please report any issues you encounter. I will try to fix them as soon as possible.
+
 ## 4) CMake Options
 
 - `JIEZHU_BUILD_STATIC` (default `OFF`): Build static (`STATIC`) or shared (`SHARED`) library
