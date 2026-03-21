@@ -21,7 +21,7 @@ int main() {
         }
         // opt.base_url = "https://api.openai.com/v1"; // default, uncomment and set your base URL if needed
 
-        jie::client client(opt);
+        jie::client client(opt); // see docs for more configuration options
 
         jie::chat_completion_request req{};
         // req.model = "gpt-4o"; // set your model
@@ -32,8 +32,8 @@ int main() {
 
         req.temperature = 0.7;
         req.max_tokens = 512;
-
-        auto resp = client.chat_completions_create(req);
+        // auto resp = client.chat_completions_create_anthropic(req);  // Uncomment if you use Anthropic API
+        auto resp = client.chat_completions_create(req);  // Comment this line and uncomment the above line if you use Anthropic API
         const std::string content = resp.first_content();
         std::cout << "Response with `chat_completions_create` (no Jiezhu):" << resp.id << std::endl;
         if (!content.empty()) {
@@ -41,7 +41,8 @@ int main() {
         } else {
             std::cout << resp.raw.dump(2) << std::endl;
         }
-        auto resp_jiezhu = client.chat_completions_jiezhu(req);
+        // auto resp_jiezhu = client.chat_completions_jiezhu_anthropic(req);  // Uncomment if you use Anthropic API
+        auto resp_jiezhu = client.chat_completions_jiezhu(req);  // Comment this line and uncomment the above line if you use Anthropic API
         const std::string content_jiezhu = resp_jiezhu.first_content();
         std::cout << "\nResponse with `chat_completions_jiezhu`:" << resp_jiezhu.id << std::endl;
         if (!content_jiezhu.empty()) {
