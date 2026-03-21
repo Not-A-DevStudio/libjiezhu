@@ -4,17 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jiezhu"
-version = "0.1.0"
-description = "Hijack OpenAI ChatCompletion system prompt by prepending a configurable prefix with terminal confirmation."
+version = "0.2.0"
+description = "Hijack system prompt for OpenAI ChatCompletion and Anthropic API by prepending a configurable prefix with terminal confirmation."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
 authors = [{ name = "Not-A-DevStudio" }]
-dependencies = [
-  "openai>=1.0.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
+openai = ["openai>=1.0.0"]
 claude = ["anthropic>=0.39.0"]
 test = ["pytest>=7.0", "pytest-asyncio"]
 
