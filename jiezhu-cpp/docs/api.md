@@ -4,7 +4,7 @@ Namespace: `jie`
 
 Header files:
 
-- `#include <jie/jiezhu.hpp>`(unified header, includes all public headers)
+- `#include <jie/jiezhu.hpp>`(unified header, includes all public headers and prompt prefix)
 
 ## 1) Data Structures
 
@@ -86,17 +86,30 @@ Client configuration.
 Fields：
 
 - `std::string api_key`：Used for `Authorization: Bearer <api_key>`
-- `std::string base_url`：Default `https://api.openai.com/v1`
+- `std::string base_url`：**Have no default value**, call `client()` to directly get a default configuration with `base_url = "https://api.openai.com/v1"`; if you want to use a different base URL, you must set this field explicitly.
 - `long timeout_seconds = 300`：curl timeout (seconds)
 - `std::string organization`：If non-empty, sends header `OpenAI-Organization: ...`
 - `std::string project`：If non-empty, sends header `OpenAI-Project: ...`
+
+it supports initialization via aggregate initialization, e.g.:
+
+```cpp
+client_options options{
+    .api_key = "sk-xxx",
+    .base_url = "https://api.openai.com/v1",
+    .timeout_seconds = 300,
+    .organization = "org-xxx",
+    .project = "proj-xxx"};
+```
+
+so you may write `client c({...})` to construct a client with custom options.
 
 ### `class client`
 
 #### Constructor
 
 - `explicit client(const client_options& options)`
-
+- `client()`: equivalent to `client(client_options{.base_url = "https://api.openai.com/v1"})`
 Internally ensures curl global initialization (RAII static object).
 
 #### Non-Streaming Requests
@@ -117,7 +130,45 @@ Errors：
 - curl call failure will throw `std::runtime_error`
 - HTTP non-2xx will throw `std::runtime_error("HTTP <code>: <body>")`
 
-2. `chat_completion_response chat_completions_jiezhu(const chat_completion_request& request) const` and `chat_completion_response chat_completions_jiezhu(const chat_completion_request& request, const std::string prompt_prefix) const`
+2. `chat_completion_response chat_completions_create_anthropic(const chat_completion_request& request) const`
+
+Behavior：
+
+- POST to: `{base_url}/messages`
+- Request body follows Anthropic Messages API shape:
+  - All `system` messages are concatenated into a top-level `system` field, separated by blank lines
+  - Non-`system` messages are kept in `messages`
+  - `model` and `stream` are written into the request body
+  - `temperature` is forwarded when present
+  - `max_tokens` is forwarded when present; otherwise the client inserts a default `max_tokens = 1024`
+- Headers:
+  - `Content-Type: application/json`
+  - `Accept: application/json`
+  - `anthropic-version: 2023-06-01`
+  - `x-api-key: ...` (if `api_key` is non-empty)
+
+Errors：
+
+- curl call failure will throw `std::runtime_error`
+- HTTP non-2xx will throw `std::runtime_error("HTTP <code>: <body>")`
+
+3. `chat_completion_response chat_completions_jiezhu_anthropic(const chat_completion_request& request) const` and `chat_completion_response chat_completions_jiezhu_anthropic(const chat_completion_request& request, const std::string prompt_prefix) const`
+
+Behavior：
+
+- Similar to `chat_completions_create_anthropic`, but prefixes every `system` message with a "jiezhu" prompt prefix before the Anthropic request body is assembled
+- The first overload uses the library's default `jiezhu` prompt prefix, while the second overload allows callers to supply a custom prefix
+- The Anthropic conversion rules still apply:
+  - system messages are merged into top-level `system`
+  - non-system messages remain in `messages`
+  - `max_tokens` defaults to `1024` when not provided
+
+Errors：
+
+- Same as `chat_completions_create_anthropic`
+- If `JIE_ENABLE_JIEZHU_ABLITY` is not defined, these methods will throw `std::runtime_error` indicating that the jiezhu ability is not enabled
+
+4. `chat_completion_response chat_completions_jiezhu(const chat_completion_request& request) const` and `chat_completion_response chat_completions_jiezhu(const chat_completion_request& request, const std::string prompt_prefix) const`
 
 Behavior：
 - Similar to `chat_completions_create`, but with additional processing to prepend a "jiezhu" prompt prefix to all system messages in the request. This is designed to enhance the assistant's ability to "catch" the user's input in a supportive manner.
@@ -156,6 +207,10 @@ Key Points:
 Errors：
 - Same as `chat_completions_stream`
 - If `JIE_ENABLE_JIEZHU_ABLITY` is not defined, these methods will throw `std::runtime_error` indicating that the jiezhu ability is not enabled.
+
+Note:
+
+- There is currently no Anthropic streaming equivalent in the public API; the Anthropic path is limited to non-streaming requests.
 
 ## 3) Aggregated Header
 
