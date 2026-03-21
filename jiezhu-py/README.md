@@ -1,16 +1,20 @@
 # Jiezhu for Python
 
-`jiezhu` is a lightweight Python client library for calling OpenAI-style Chat Completions API, with the ability to automatically inject a system prompt prefix to "catch" the user input steadily.
+`jiezhu` is a lightweight Python client library for calling OpenAI-style Chat Completions API and Anthropic-style API, with the ability to automatically inject a system prompt prefix to "catch" the user input steadily.
+
+## Prerequisites
+
+To use this library, you need to have Python 3.8 or higher installed. This library **does not automatically install any ai SDK**. You also need to have the OpenAI Python SDK installed for OpenAI API support, and the Anthropic Python SDK installed for Anthropic API support.
 
 ## Installation
 
-### 1. Install from PyPI
+### Install from PyPI
 
 ```bash
 pip install jiezhu
 ```
 
-### 2. Install from Source
+### Install from Source
 
 1. Clone the universal repository of Jiezhu and navigate to the root directory of python library.
 
@@ -27,7 +31,7 @@ pip install -e ./
 
 Given that this repository contains both C++ and Python libraries, you may also find a **packed Python source file** of this repository.
 
-### 3. Install from Pre-built Binary Package
+### Install from Pre-built Binary Package
 
 1. Go to the [Release page](https://github.com/Not-A-DevStudio/libjiezhu/releases) of this repository, and find the latest release.
 
