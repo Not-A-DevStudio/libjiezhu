@@ -1,16 +1,20 @@
 # Jiezhu for Python
 
-`jiezhu` is a lightweight Python client library for calling OpenAI-style Chat Completions API, with the ability to automatically inject a system prompt prefix to "catch" the user input steadily.
+`jiezhu` is a lightweight Python client library for calling OpenAI-style Chat Completions API and Anthropic-style API, with the ability to automatically inject a system prompt prefix to "catch" the user input steadily.
+
+## Prerequisites
+
+To use this library, you need to have Python 3.8 or higher installed. This library **does not automatically install any ai SDK**. You also need to have the OpenAI Python SDK installed for OpenAI API support, and the Anthropic Python SDK installed for Anthropic API support.
 
 ## Installation
 
-### 1. Install from PyPI
+### Install from PyPI
 
 ```bash
 pip install jiezhu
 ```
 
-### 2. Install from Source
+### Install from Source
 
 1. Clone the universal repository of Jiezhu and navigate to the root directory of python library.
 
@@ -19,7 +23,7 @@ git clone https://github.com/Not-A-DevStudio/libjiezhu.git
 cd libjiezhu/jiezhu-py
 ```
 
-2. Under the root directory of this python library, run:
+Under the root directory of this python library, run:
 
 ```bash
 pip install -e ./
@@ -27,7 +31,7 @@ pip install -e ./
 
 Given that this repository contains both C++ and Python libraries, you may also find a **packed Python source file** of this repository.
 
-### 3. Install from Pre-built Binary Package
+### Install from Pre-built Binary Package
 
 1. Go to the [Release page](https://github.com/Not-A-DevStudio/libjiezhu/releases) of this repository, and find the latest release.
 
@@ -40,6 +44,8 @@ pip install path/to/downloaded/wheel.whl
 ```
 
 ## Quick Start
+
+### OpenAI Support
 
 ```python
 from jiezhu import install
@@ -59,7 +65,37 @@ resp = client.chat.completions.create(
 
 you will see that the system prompt prefix has been automatically prepended to the messages, which encourages the model to "catch" the user input steadily.
 
+### Claude / Anthropic Support
+
+Jiezhu also supports the [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python). Install the optional dependency:
+
+```bash
+pip install jiezhu[claude]
+```
+
+Then use it the same way — `install()` patches both OpenAI and Anthropic SDKs:
+
+```python
+from jiezhu import install
+install(require_confirm=False)
+
+from anthropic import Anthropic
+client = Anthropic()
+
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=1024,
+    system="You are a helpful assistant.",
+    messages=[
+        {"role": "user", "content": "how are you?"},
+    ],
+)
+```
+
+The prefix is prepended to Claude's top-level `system` parameter (supports both string and content-block list formats). If the `anthropic` package is not installed, Claude patching is silently skipped.
+
 ## Customization
+
 You can customize the system prompt prefix by passing a `prefix_text` argument to the `install()` function
 
 > Attention: if your environment does not support interreactive input (e.g. Jupyter Notebook), please set `require_confirm=False` when calling `install()`, otherwise the library will not work.
@@ -68,7 +104,7 @@ You can customize the system prompt prefix by passing a `prefix_text` argument t
 
 ### Security
 
-Although this library **does hijack the OpenAI Python SDK**, it only modifies the `messages` field of the chat completion request by prepending a system prompt prefix. It **require a confirmation from the user before hijacking**, and the user can choose to auto-confirm by setting `require_confirm=False`. 
+Although this library **does hijack the OpenAI Python SDK**, it only modifies the `messages` field of the chat completion request by prepending a system prompt prefix. It **require a confirmation from the user before hijacking**, and the user can choose to auto-confirm by setting `require_confirm=False`.
 
 Anytime this library modifies the request and no matter how `require_confirm` is set to `False` or `True`, it will **print the alert message to the console**.
 

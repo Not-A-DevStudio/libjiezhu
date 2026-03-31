@@ -22,20 +22,20 @@
 - 仅在推理时注入"稳稳的"前缀提示词
 
 ### 🌐 多语言支持
-| 语言 | 状态 | 接入方式 |
-|------|------|----------|
-| Python | ✅ 稳定版 | `pip install jiezhu` |
-| C++ | ✅ 稳定版 | 源码集成 |
-| JavaScript/TypeScript | 🚧 规划中 | — |
-| Go | 🚧 规划中 | — |
-| Rust | 🚧 规划中 | — |
+| 语言                    | 状态     | 接入方式                 |
+|-----------------------|--------|----------------------|
+| Python                | ✅ 稳定版  | `pip install jiezhu` |
+| C++                   | ✅ 稳定版  | 源码集成                 |
+| JavaScript/TypeScript | 🚧 规划中 | —                    |
+| Go                    | 🚧 规划中 | —                    |
+| Rust                  | 🚧 规划中 | —                    |
 
 ### 🔧 双模式API设计（C++）
 
-| 函数 | 行为特征 | 适用场景 |
-|------|----------|----------|
-| `jie::chat_completion_create()` | **纯净模式**。严格遵循 OpenAI 官方规范，不做任何修改。 | 生产环境、合规要求严格的场景 |
-| `jie::chat_completion_jiezhu()` | **福报模式**。自动注入系统提示词，让模型稳稳接住用户。 | 需要情感价值、用户留存、或单纯想看点乐子的场景 |
+| 函数                              | 行为特征                              | 适用场景                    |
+|---------------------------------|-----------------------------------|-------------------------|
+| `jie::chat_completion_create()` | **纯净模式**。严格遵循 OpenAI 官方规范，不做任何修改。 | 生产环境、合规要求严格的场景          |
+| `jie::chat_completion_jiezhu()` | **福报模式**。自动注入系统提示词，让模型稳稳接住用户。     | 需要情感价值、用户留存、或单纯想看点乐子的场景 |
 
 > **设计哲学**：我们尊重开发者的选择权。你可以拒绝福报，但福报永远为你留着。
 
@@ -63,12 +63,11 @@ install(require_confirm=True)
 #include "jie/jiezhu.hpp"
 
 // 常规调用模式（_create）
-auto response = jie::chat_completion_create(params);
+auto response = client.chat_completion_create(params);
 
 // 稳稳接住模式（_jiezhu）
-auto jiezhu_response = jie::chat_completion_jiezhu(params);
-// 返回的 JSON 中，choices[0].message.content 将包含
-// 经过"稳稳地"增强的共情内容
+auto jiezhu_response = client.chat_completion_jiezhu(params);
+// Agent 将在 choices[0].message.content 中“稳稳接住”用户 
 ```
 
 [浏览C++库文档](./jiezhu-cpp/README.md)
@@ -93,7 +92,7 @@ auto jiezhu_response = jie::chat_completion_jiezhu(params);
 
 ### 兼容性保障
 
-- **Python 版**：通过 Monkey Patching 劫持 `openai.ChatCompletion.create`，确保与现有代码 100% 兼容
+- **Python 版**：通过 Monkey Patching ，确保与现有代码 100% 兼容
 - **C++ 版**：基于 `libcurl` 和 `nlohmann/json` 自建客户端，不依赖官方 SDK，避免版本冲突
 
 ---
@@ -123,7 +122,7 @@ Jiezhu 项目致力于构建一个**开源、中立、可插拔**的共情层，
 - [x] 提示词模板自定义功能：允许用户根据不同场景定制"稳稳的"前缀，满足多样化的共情需求
 
 ### 中期
-- [ ] 多基座模型支持（Claude API、Gemini API、本地模型等）：让更多 AI Agent 具备稳稳接住中文用户的能力
+- [ ] 多基座模型支持（Claude API、Gemini API、本地模型等），现已支持Claude API：让更多 AI Agent 具备稳稳接住中文用户的能力
 - [ ] 企业级特性，如共情日志审计、接住率（Jiezhu Rate）监控面板：帮助企业量化和优化用户被稳稳接住的程度
 - [ ] 更多语言端口（Java、C#）：欢迎社区开发者加入，让全球更多开发者能够稳稳接住他们的用户
 

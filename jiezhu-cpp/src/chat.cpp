@@ -53,19 +53,72 @@ namespace jie {
         return j;
     }
 
-    std::string chat_completion_response::first_content() const {
-        try {
-            if (!raw.is_object()) return std::string();
-            if (!raw.contains("choices") || !raw["choices"].is_array() || raw["choices"].empty()) return std::string();
-            const nlohmann::json &c0 = raw["choices"][0];
-            if (!c0.contains("message")) return std::string();
-            const nlohmann::json &msg = c0["message"];
-            if (!msg.contains("content")) return std::string();
-            if (!msg["content"].is_string()) return std::string();
-            return msg["content"].get<std::string>();
-        } catch (...) {
-            return std::string();
+    static nlohmann::json to_anthropic_json(const chat_completion_request &request) {
+        nlohmann::json j = request.extra.is_object() ? request.extra : nlohmann::json::object();
+        j["model"] = request.model;
+        j["stream"] = request.stream;
+
+        std::string system_text;
+        nlohmann::json anthropic_messages = nlohmann::json::array();
+        for (const auto &msg: request.messages) {
+            if (msg.role == "system") {
+                if (!system_text.empty()) system_text += "\n\n";
+                system_text += msg.content;
+                continue;
+            }
+            nlohmann::json m;
+            m["role"] = msg.role;
+            m["content"] = msg.content;
+            anthropic_messages.push_back(m);
         }
+
+        if (!system_text.empty()) {
+            j["system"] = system_text;
+        }
+        j["messages"] = anthropic_messages;
+
+        if (request.temperature.has_value()) j["temperature"] = *request.temperature;
+        if (request.max_tokens.has_value()) {
+            j["max_tokens"] = *request.max_tokens;
+        } else if (!j.contains("max_tokens")) {
+            // Anthropic requires max_tokens in the request body.
+            j["max_tokens"] = 1024;
+        }
+
+        return j;
+    }
+
+    std::string chat_completion_response::first_content() const {
+        if (!raw.is_object()) return std::string();
+
+        // OpenAI chat completions response shape: choices[0].message.content
+        try {
+            if (raw.contains("choices") && raw["choices"].is_array() && !raw["choices"].empty()) {
+                const nlohmann::json &c0 = raw["choices"][0];
+                if (c0.contains("message") && c0["message"].is_object()) {
+                    const nlohmann::json &msg = c0["message"];
+                    if (msg.contains("content") && msg["content"].is_string()) {
+                        return msg["content"].get<std::string>();
+                    }
+                }
+            }
+        } catch (...) {
+            // Best-effort only.
+        }
+
+        // Anthropic messages response shape: content[0].text
+        try {
+            if (raw.contains("content") && raw["content"].is_array() && !raw["content"].empty()) {
+                const nlohmann::json &c0 = raw["content"][0];
+                if (c0.is_object() && c0.contains("text") && c0["text"].is_string()) {
+                    return c0["text"].get<std::string>();
+                }
+            }
+        } catch (...) {
+            // Best-effort only.
+        }
+
+        return std::string();
     }
 
     static size_t write_to_string(void *ptr, size_t size, size_t nmemb, void *userdata) {
@@ -89,6 +142,16 @@ namespace jie {
         if (!options.project.empty()) {
             std::string proj = std::string("OpenAI-Project: ") + options.project;
             *headers = curl_slist_append(*headers, proj.c_str());
+        }
+    }
+
+    static void set_anthropic_headers(const client_options &options, struct curl_slist **headers) {
+        *headers = curl_slist_append(*headers, "Content-Type: application/json");
+        *headers = curl_slist_append(*headers, "anthropic-version: 2023-06-01");
+
+        if (!options.api_key.empty()) {
+            std::string key = std::string("x-api-key: ") + options.api_key;
+            *headers = curl_slist_append(*headers, key.c_str());
         }
     }
 
@@ -121,6 +184,59 @@ namespace jie {
             const std::string payload = request.to_json().dump();
 
             set_common_headers(options_, &headers);
+            headers = curl_slist_append(headers, "Accept: application/json");
+
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(payload.size()));
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT, options_.timeout_seconds);
+
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+
+            CURLcode rc = curl_easy_perform(curl);
+            if (rc != CURLE_OK) {
+                std::string msg = std::string("curl_easy_perform failed: ") + curl_easy_strerror(rc);
+                throw std::runtime_error(msg);
+            }
+
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+            if (http_code < 200 || http_code >= 300) {
+                throw_http_error(http_code, response_body);
+            }
+
+            chat_completion_response resp;
+            resp.raw = nlohmann::json::parse(response_body);
+            if (resp.raw.contains("id") && resp.raw["id"].is_string()) resp.id = resp.raw["id"].get<std::string>();
+            if (resp.raw.contains("model") && resp.raw["model"].is_string())
+                resp.model = resp.raw["model"].get<std::string>();
+            curl_slist_free_all(headers);
+            curl_easy_cleanup(curl);
+            return resp;
+        } catch (...) {
+            if (headers) curl_slist_free_all(headers);
+            curl_easy_cleanup(curl);
+            throw;
+        }
+    }
+
+    chat_completion_response client::chat_completions_create_anthropic(const chat_completion_request &request) const {
+        ensure_curl_global();
+
+        CURL *curl = curl_easy_init();
+        if (!curl) throw std::runtime_error("curl_easy_init failed");
+
+        struct curl_slist *headers = NULL;
+        std::string response_body;
+        long http_code = 0;
+
+        try {
+            const std::string url = options_.base_url + "/messages";
+            const std::string payload = to_anthropic_json(request).dump();
+
+            set_anthropic_headers(options_, &headers);
             headers = curl_slist_append(headers, "Accept: application/json");
 
             curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -346,6 +462,31 @@ namespace jie {
         return chat_completions_create(temp);
     }
 
+    chat_completion_response client::chat_completions_jiezhu_anthropic(
+        const chat_completion_request &request)
+    const
+    {
+        auto temp = request;
+        for (auto &message: temp.messages) {
+            if (message.role != "system") continue;
+            message.content = _default_prompt_prefix + message.content;
+        }
+        return chat_completions_create_anthropic(temp);
+    }
+
+    chat_completion_response client::chat_completions_jiezhu_anthropic(
+        const chat_completion_request &request,
+        const std::string &prompt_prefix)
+    const {
+        auto temp = request;
+        for (auto &message: temp.messages) {
+            if (message.role != "system") continue;
+            message.content = prompt_prefix + message.content;
+        }
+        return chat_completions_create_anthropic(temp);
+    }
+
+
     void client::chat_completions_stream_jiezhu(
         const chat_completion_request &request,
         const std::function<bool(const chat_completion_stream_event &)> &on_event)
@@ -408,6 +549,20 @@ namespace jie {
         (void)on_event;
         throw std::runtime_error("jiezhu ability is not enabled in this build");
     };
+    chat_completion_response client::chat_completions_jiezhu_anthropic(
+        const chat_completion_request &request)
+    const {
+        (void)request;
+        throw std::runtime_error("jiezhu ability is not enabled in this build");
+    }
 
+    chat_completion_response client::chat_completions_jiezhu_anthropic(
+    const chat_completion_request &request,
+    const std::string &prompt_prefix)
+const {
+        (void)request;
+        (void)prompt_prefix;
+        throw std::runtime_error("jiezhu ability is not enabled in this build");
+    }
 #endif
 } // namespace jie

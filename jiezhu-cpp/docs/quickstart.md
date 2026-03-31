@@ -27,7 +27,7 @@ If you have installed this library (`cmake --install`) and exported the CMake pa
 find_package(jiezhu CONFIG REQUIRED)
 
 add_executable(app main.cpp)
-target_link_libraries(app PRIVATE jiezhu::jiezhu)
+target_link_libraries(app PRIVATE jiezhu::jie)
 ```
 
 If you prefer to build it as part of your project, you can use `add_subdirectory`:
@@ -36,10 +36,36 @@ If you prefer to build it as part of your project, you can use `add_subdirectory
 add_subdirectory(path/to/jiezhu/cpp)
 
 add_executable(app main.cpp)
-target_link_libraries(app PRIVATE jiezhu::jiezhu)
+target_link_libraries(app PRIVATE jiezhu::jie)
 ```
 
 More detail, see [build.md](build.md)
+
+## 1) Initialization for jie::client
+
+you can initialize `jie::client` with options:
+```cpp
+jie::client c1(); // default base_url = "https://api.openai.com/v1", timeout_seconds=300, other fields empty
+
+
+jie::client c2({
+    .api_key = "sk-xxx",
+    .base_url = "https://api.provider.com/v1",
+    .timeout_seconds = 300,
+    .organization = "org-xxx",
+    .project = "proj-xxx",
+    // All of those fields are optional, you can just set the ones you need, e.g., only api_key
+    });
+
+// or you can construct options first, then pass it in
+jie::client_options opt;
+opt.api_key = "sk-xxx";
+opt.base_url = "https://api.provider.com/v1";
+opt.timeout_seconds = 300;
+opt.organization = "org-xxx";
+opt.project = "proj-xxx";
+jie::client c3(opt);
+```
 
 ## 2) Non-Streaming Example
 
@@ -124,4 +150,4 @@ int main() {
 
 - **Q: Do I need to parse JSON myself?**
   - You can directly use `chat_completion_response::raw` (`nlohmann::json`) to get the full response.
-  - You can also use `first_content()` for the most common case of "get choices[0].message.content".
+  - You can also use `first_content()` for the most common case of "get choices[0].message.content". It support both OpenAI-style and Anthropic-style responses.

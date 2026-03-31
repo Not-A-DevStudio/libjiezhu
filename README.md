@@ -22,19 +22,19 @@ We believe: **Every AI Agent, regardless of its base model, should have the abil
 - Only injects the "steady" prefix prompt during inference
 
 ### 🌐 Multi-language Support
-| Language | Status | Integration Method |
-|----------|--------|-------------------|
-| [Python](./jiezhu-py/README.md) | ✅ Stable | `pip install jiezhu` |
-| [C++](./jiezhu-cpp/README.md) | ✅ Stable | Source integration |
-| JavaScript/TypeScript | 🚧 Planned | — |
-| Go | 🚧 Planned | — |
-| Rust | 🚧 Planned | — |
+| Language                        | Status     | Integration Method   |
+|---------------------------------|------------|----------------------|
+| [Python](./jiezhu-py/README.md) | ✅ Stable   | `pip install jiezhu` |
+| [C++](./jiezhu-cpp/README.md)   | ✅ Stable   | Source integration   |
+| JavaScript/TypeScript           | 🚧 Planned | —                    |
+| Go                              | 🚧 Planned | —                    |
+| Rust                            | 🚧 Planned | —                    |
 
 ### 🔧 Dual-Mode API Design (C++)
 
-| Function | Behavior Characteristics | Use Cases |
-|----------|-------------------------|-----------|
-| `jie::chat_completion_create()` | **Pure Mode**. Strictly follows OpenAI official specifications, no modifications. | Production environments, strict compliance requirements |
+| Function                        | Behavior Characteristics                                                                         | Use Cases                                                                            |
+|---------------------------------|--------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| `jie::chat_completion_create()` | **Pure Mode**. Strictly follows OpenAI official specifications, no modifications.                | Production environments, strict compliance requirements                              |
 | `jie::chat_completion_jiezhu()` | **Blessing Mode**. Automatically injects system prompts, letting the model steadily catch users. | Scenarios needing emotional value, user retention, or simply wanting to see some fun |
 
 > **Design Philosophy**: We respect developers' right to choose. You can refuse the blessing, but the blessing always remains for you.
@@ -62,10 +62,10 @@ See [Python library documentation](./jiezhu-py/README.md)
 #include "jie/jiezhu.hpp"
 
 // Pure mode: regular call
-auto response = jie::chat_completion_create(params);
+auto response = client.chat_completion_create(params);
 
 // Blessing mode: steadily catch
-auto jiezhu_response = jie::chat_completion_jiezhu(params);
+auto jiezhu_response = client.chat_completion_jiezhu(params);
 // In the returned JSON, choices[0].message.content will contain
 // empathetically enhanced content through "steadily catching"
 ```
@@ -92,7 +92,7 @@ This prompt has undergone extensive adversarial testing to ensure the model stab
 
 ### Compatibility Assurance
 
-- **Python Version**: Monkey Patches `openai.ChatCompletion.create`, ensuring 100% compatibility with existing code
+- **Python Version**: Monkey Patches SDK (currently OpenAI and Anthropic SDK), ensuring 100% compatibility with existing code         
 - **C++ Version**: Self-built client based on `libcurl` and `nlohmann/json`, independent of official SDK to avoid version conflicts
 
 ---
@@ -122,7 +122,7 @@ The Jiezhu project aims to build an **open-source, neutral, pluggable** empathy 
 - [x] Customizable prompt templates: Allow users to customize the "steady" prefix for different scenarios, meeting diverse empathy needs
 
 ### Mid-term
-- [ ] Multi-base model support (Claude API, Gemini API, local models, etc.): Enable more AI Agents to steadily catch Chinese users
+- [ ] (Finished Claude API support) Multi-base model support (Claude API, Gemini API, local models, etc.): Enable more AI Agents to steadily catch Chinese users
 - [ ] Enterprise features like empathy log auditing, Jiezhu Rate monitoring dashboard: Help enterprises quantify and optimize how steadily users are caught
 - [ ] More language ports (Java, C#): Community developers welcome to join, enabling more developers worldwide to steadily catch their users
 

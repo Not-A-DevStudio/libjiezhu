@@ -6,6 +6,11 @@
 */dist/
 /build/
 */build/
+*/_deps/
 /cmake-*/
 */cmake-*/
-
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+uv.lock

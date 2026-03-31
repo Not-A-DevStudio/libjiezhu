@@ -7,7 +7,7 @@
 
 The current public headers of this library:
 
-- `jie/jiezhu.hpp`: Aggregated header (currently only includes `jie/chat.hpp`)
+- `jie/jiezhu.hpp`: Aggregated header, and Jiezhu-specific API (e.g., `chat_completion_jiezhu`)
 - `jie/chat.hpp`: Core API (data structures + `jie::client`)
 
 ## Quick Navigation

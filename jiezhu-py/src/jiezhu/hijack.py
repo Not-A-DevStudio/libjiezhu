@@ -101,6 +101,46 @@ def _apply_prefix_to_messages(messages: Sequence[dict], prefix_text: str) -> Tup
     return new_messages, True, old_system, new_system
 
 
+def _apply_prefix_to_system_param(
+    system: Any, prefix_text: str
+) -> Tuple[Any, bool, str, str]:
+    """Apply prefix to Claude's top-level ``system`` parameter.
+
+    Claude accepts ``system`` as either:
+    - a plain ``str``
+    - a ``list`` of content blocks (``[{"type": "text", "text": "..."}]``)
+    - ``None`` (absent)
+
+    Returns (new_system, changed, old_system_str, new_system_str).
+    """
+    prefix_text = prefix_text or ""
+    if prefix_text == "":
+        return system, False, "", ""
+
+    if system is None:
+        return prefix_text, True, "", prefix_text
+
+    if isinstance(system, str):
+        old = system
+        new = prefix_text + system
+        return new, True, old, new
+
+    if isinstance(system, list):
+        # Content-block list — shallow-copy and prepend to first text block
+        new_blocks: List[dict] = [dict(b) if isinstance(b, dict) else b for b in system]
+        for block in new_blocks:
+            if isinstance(block, dict) and block.get("type") == "text":
+                old = block.get("text") or ""
+                block["text"] = prefix_text + old
+                return new_blocks, True, old, block["text"]
+        # No text block found — insert one at front
+        new_blocks.insert(0, {"type": "text", "text": prefix_text})
+        return new_blocks, True, "", prefix_text
+
+    # Unknown type — pass through
+    return system, False, "", ""
+
+
 def _prompt_confirm(prefix_text: str, old_system: str, new_system: str) -> bool:
     out = _CONFIG.output
     limit = _CONFIG.max_preview_chars
@@ -171,6 +211,42 @@ def _wrap_create(create_fn: Any) -> Any:
     return wrapped
 
 
+def _wrap_claude_create(create_fn: Any) -> Any:
+    """Wrap an Anthropic ``Messages.create`` to inject the prefix into
+    the ``system`` keyword argument."""
+    @functools.wraps(create_fn)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        prefix_text = _CONFIG.prefix_text
+        if not prefix_text:
+            return create_fn(*args, **kwargs)
+
+        system = kwargs.get("system", None)
+        new_system, changed, old_system, new_system_str = _apply_prefix_to_system_param(
+            system, prefix_text
+        )
+        if not changed:
+            return create_fn(*args, **kwargs)
+
+        proceed = True
+        if _CONFIG.require_confirm:
+            proceed = _prompt_confirm(prefix_text, old_system, new_system_str)
+        else:
+            out = _CONFIG.output
+            out.write(
+                "\n[jiezhu] automatically modified Anthropic system prompt"
+                "(require_confirm=False)\n"
+            )
+            out.flush()
+
+        if proceed:
+            kwargs["system"] = new_system
+            return create_fn(*args, **kwargs)
+
+        return create_fn(*args, **kwargs)
+
+    return wrapped
+
+
 def _is_already_wrapped(attr: Any) -> bool:
     if getattr(attr, "__jiezhu_wrapped__", False):
         return True
@@ -187,7 +263,7 @@ def _wrap_descriptor(original_attr: Any, wrapped_fn: Any) -> Any:
     return wrapped_fn
 
 
-def _try_patch_attr(obj: object, attr_name: str) -> bool:
+def _try_patch_attr(obj: object, attr_name: str, wrapper_fn: Any = None) -> bool:
     if not hasattr(obj, attr_name):
         return False
 
@@ -203,7 +279,8 @@ def _try_patch_attr(obj: object, attr_name: str) -> bool:
     else:
         original_callable = getattr(obj, attr_name)
 
-    wrapped_fn = _wrap_create(original_callable)
+    wrap = wrapper_fn or _wrap_create
+    wrapped_fn = wrap(original_callable)
     setattr(wrapped_fn, "__jiezhu_wrapped__", True)
 
     _ORIGINALS.append((obj, attr_name, original_attr))
@@ -299,6 +376,35 @@ def install(
             "No patch targets found. Your openai package may be an unsupported version. "
             "Expected `openai.resources.chat.completions.Completions.create` or `openai.ChatCompletion.create`."
         )
+
+    # --- Anthropic / Claude SDK (optional) ---
+    try:
+        import anthropic  # type: ignore
+    except Exception:
+        anthropic = None  # type: ignore[assignment]
+
+    if anthropic is not None:
+        claude_candidates: List[Tuple[object, str]] = []
+
+        try:
+            resources = getattr(anthropic, "resources", None)
+            if resources is not None:
+                messages_mod = getattr(resources, "messages", None)
+                if messages_mod is not None:
+                    messages_cls = getattr(messages_mod, "Messages", None)
+                    if messages_cls is not None:
+                        claude_candidates.append((messages_cls, "create"))
+                    async_messages_cls = getattr(messages_mod, "AsyncMessages", None)
+                    if async_messages_cls is not None:
+                        claude_candidates.append((async_messages_cls, "create"))
+        except Exception:
+            pass
+
+        for obj, attr in claude_candidates:
+            try:
+                _try_patch_attr(obj, attr, wrapper_fn=_wrap_claude_create)
+            except Exception:
+                continue
 
     _INSTALLED = True
 

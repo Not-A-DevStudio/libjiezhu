@@ -20,13 +20,6 @@ cmake -S . -B build
 cmake --build build --config Release
 ```
 
-or only for `cpp/`：
-
-```bash
-cmake -S cpp -B build-cpp
-cmake --build build-cpp --config Release
-```
-
 ## 2) Add as a Dependency (add_subdirectory)
 
 ```cmake
@@ -57,11 +50,13 @@ find_package(jiezhu CONFIG REQUIRED)
 target_link_libraries(app PRIVATE jiezhu::jie)
 ```
 
+NOTE: installing Jiezhu is not tested, if you want to use this method, please report any issues you encounter. I will try to fix them as soon as possible.
+
 ## 4) CMake Options
 
 - `JIEZHU_BUILD_STATIC` (default `OFF`): Build static (`STATIC`) or shared (`SHARED`) library
 - `JIEZHU_INSTALL` (default `ON`): Whether to generate install/export rules
-- `JIEZHU_ENABLE_JIEZHU_ABLITY` (default `ON`): Whether to enable full ability of `jiezhu` (if `OFF`, only the core API is built, without functions like `chat_completion_jiezhu`)
+- `JIEZHU_ENABLE_JIEZHU_ABLITY` (default `OFF`): Whether to enable full ability of `jiezhu` (if `OFF`, only the core API is built, without functions like `chat_completion_jiezhu`)
 - `JIEZHU_BULID_TESTS` (default `OFF`): Whether to build tests (requires `Catch2`)
 
 ## 5) Dependency Management

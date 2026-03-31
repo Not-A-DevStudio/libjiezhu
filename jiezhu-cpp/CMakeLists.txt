@@ -98,8 +98,12 @@ if (JIEZHU_BUILD_TEST)
     include(CTest)
     if (BUILD_TESTING)
         add_executable(jiezhu-tests
-                ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_curl.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_create_curl.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_stream_curl.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_errors_curl.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_anthropic_curl.cpp
         )
+        target_include_directories(jiezhu-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
         target_link_libraries(jiezhu-tests PRIVATE jiezhu Catch2::Catch2WithMain)
         if (WIN32)
             target_link_libraries(jiezhu-tests PRIVATE ws2_32)
