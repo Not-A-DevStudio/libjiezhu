@@ -1,0 +1,26 @@
+var searchData=
+[
+  ['saw_5fdone_0',['saw_done',['../structjie_1_1stream__state.html#a46c45f6e38904d639c88c7658f46439b',1,'jie::stream_state::saw_done'],['../structjie_1_1response__stream__state.html#a84cabeef2837a5957e1d72a8dc2bf37b',1,'jie::response_stream_state::saw_done']]],
+  ['security_1',['Security',['../md_jiezhu-cpp_2docs_2index.html#autotoc_md30',1,'']]],
+  ['socket_5fruntime_2',['socket_runtime',['../structtest__support_1_1socket__runtime.html',1,'test_support']]],
+  ['source_20code_20for_20the_20library_3',['0) Get the source code for the library',['../md_jiezhu-cpp_2docs_2quickstart.html#autotoc_md32',1,'']]],
+  ['sse_4',['Streaming Requests (SSE)',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md11',1,'']]],
+  ['start_20guide_5',['Quick Start Guide',['../md_jiezhu-cpp_2docs_2quickstart.html',1,'']]],
+  ['starts_5fwith_6',['starts_with',['../test__http__server_8hpp.html#afbcdad78ff5edc364b464c339e92aa6d',1,'test_support']]],
+  ['stop_7',['stop',['../classtest__support_1_1tiny__http__server.html#a006c90df0c13baa9b9063d8ab4728567',1,'test_support::tiny_http_server']]],
+  ['stream_8',['stream',['../structjie_1_1chat__completion__request.html#aefef7a8d43421d94295403f3d64d1195',1,'jie::chat_completion_request::stream'],['../structjie_1_1response__request.html#a97038dc7063cca41a47f6fd9e9534d8c',1,'jie::response_request::stream']]],
+  ['stream_5fstate_9',['stream_state',['../structjie_1_1stream__state.html',1,'jie']]],
+  ['streaming_10',['streaming',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md17',1,'Non-Streaming'],['../md_jiezhu-cpp_2docs_2api.html#autotoc_md18',1,'Streaming']]],
+  ['streaming_20example_11',['streaming example',['../md_jiezhu-cpp_2docs_2quickstart.html#autotoc_md34',1,'2) Non-Streaming Example'],['../md_jiezhu-cpp_2docs_2quickstart.html#autotoc_md35',1,'3) Streaming Example']]],
+  ['streaming_20requests_12',['Non-Streaming Requests',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md10',1,'']]],
+  ['streaming_20requests_20sse_13',['Streaming Requests (SSE)',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md11',1,'']]],
+  ['struct_20chat_5fcompletion_5frequest_20tt_14',['&lt;tt&gt;struct chat_completion_request&lt;/tt&gt;',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md3',1,'']]],
+  ['struct_20chat_5fcompletion_5fresponse_20tt_15',['&lt;tt&gt;struct chat_completion_response&lt;/tt&gt;',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md4',1,'']]],
+  ['struct_20chat_5fcompletion_5fstream_5fevent_20tt_16',['&lt;tt&gt;struct chat_completion_stream_event&lt;/tt&gt;',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md5',1,'']]],
+  ['struct_20client_5foptions_20tt_17',['&lt;tt&gt;struct client_options&lt;/tt&gt;',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md7',1,'']]],
+  ['struct_20message_20tt_18',['&lt;tt&gt;struct message&lt;/tt&gt;',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md2',1,'']]],
+  ['struct_20response_5frequest_20tt_19',['&lt;tt&gt;struct response_request&lt;/tt&gt;',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md13',1,'']]],
+  ['struct_20response_5fresponse_20tt_20',['&lt;tt&gt;struct response_response&lt;/tt&gt;',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md14',1,'']]],
+  ['struct_20response_5fstream_5fevent_20tt_21',['&lt;tt&gt;struct response_stream_event&lt;/tt&gt;',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md15',1,'']]],
+  ['structures_22',['1) Data Structures',['../md_jiezhu-cpp_2docs_2api.html#autotoc_md1',1,'']]]
+];
