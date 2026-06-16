@@ -35,7 +35,7 @@ We believe: **Every AI Agent, regardless of its base model, should have the abil
 | Function                        | Behavior Characteristics                                                                         | Use Cases                                                                            |
 |---------------------------------|--------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
 | `jie::chat_completion_create()` | **Pure Mode**. Strictly follows OpenAI official specifications, no modifications.                | Production environments, strict compliance requirements                              |
-| `jie::chat_completion_jiezhu()` | **Blessing Mode**. Automatically injects system prompts, letting the model steadily catch users. | Scenarios needing emotional value, user retention, or simply wanting to see some fun |
+| `jie::chat_completions_jiezhu()` | **Blessing Mode**. Automatically injects system prompts, letting the model steadily catch users. | Scenarios needing emotional value, user retention, or simply wanting to see some fun |
 
 > **Design Philosophy**: We respect developers' right to choose. You can refuse the blessing, but the blessing always remains for you.
 
@@ -65,7 +65,7 @@ See [Python library documentation](./jiezhu-py/README.md)
 auto response = client.chat_completion_create(params);
 
 // Blessing mode: steadily catch
-auto jiezhu_response = client.chat_completion_jiezhu(params);
+auto jiezhu_response = client.chat_completions_jiezhu(params);
 // In the returned JSON, choices[0].message.content will contain
 // empathetically enhanced content through "steadily catching"
 ```
@@ -132,6 +132,8 @@ The Jiezhu project aims to build an **open-source, neutral, pluggable** empathy 
 - [ ] Internationalization: Explore catching needs of non-Chinese users, creating globally universal "steady catching" experience
 - [ ] Jiezhu Computer Unit (JCU): Dedicated hardware accelerator based on Jiezhu technology, providing ultimate empathy performance
 - [ ] Jiezhu IoT: Local distributed edge catching network, enabling every smart device to steadily catch users
+
+Real Jiezhu Roadmap in 2026: view [Jiezhu dev blog](https://not-a-devstudio.github.io/jiezhu/#/blog?id=jiezhu_roadmap_2026)
 
 ### Ultimate Vision
 > "Let every bit be steadily caught across the entire chain."

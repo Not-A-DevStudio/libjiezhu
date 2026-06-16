@@ -1,16 +1,21 @@
-/.venv/
+# ignore ide files
 /.vscode/
 /.idea/
-*/*/*/__pycache__
-*/*/*.egg-info/
-*/dist/
-/build/
-*/build/
-*/_deps/
-/cmake-*/
-*/cmake-*/
-__pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-uv.lock
+# ignore build
+**/.venv/
+**/__pycache__
+**/*.egg-info/
+**/dist/
+**/build/
+**/build-*/
+**/_deps/
+**/cmake-*/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/uv.lock
+# ignore doc outputs
+doxy/**/*
+!doxy/index.html
+!doxy/doxygen.css

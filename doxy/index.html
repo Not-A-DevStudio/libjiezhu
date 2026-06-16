@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.16.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Jiezhu Library Manual: Main Page</title>
+<link rel="stylesheet" type="text/css" href="doxygen.css"/>
+<style>
+/* Doxygen-style custom homepage */
+html, body { height: 100%; margin: 0; padding: 0; }
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: #ffffff;
+}
+#top {
+  background: linear-gradient(to bottom, #6f8fc4 0%, #4863a0 100%);
+  border-bottom: 1px solid #2c3e6c;
+  padding: 0;
+}
+#titlearea {
+  background: #f5f7fa;
+  border-bottom: 1px solid #b8c4d6;
+  padding: 10px 20px;
+}
+#titlearea table { width: 100%; border-collapse: collapse; }
+#projectalign { vertical-align: middle; }
+#projectname {
+  font-size: 26px;
+  font-weight: bold;
+  color: #2c3e6c;
+  letter-spacing: 0.5px;
+}
+#projectbrief {
+  font-size: 12px;
+  color: #4a4a4a;
+  margin-top: 2px;
+}
+.navbar {
+  display: flex;
+  align-items: center;
+  padding: 6px 20px;
+  color: #ffffff;
+}
+.navbar .navlinks {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.navbar .navlinks a {
+  color: #ffffff;
+  text-decoration: none;
+  padding: 4px 12px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+.navbar .navlinks a:hover { background: rgba(255,255,255,0.15); }
+.tabbar {
+  display: flex;
+  background: #2c3e6c;
+  border-bottom: 1px solid #1a2640;
+  padding: 0 20px;
+}
+.tabbar .tab {
+  padding: 10px 22px;
+  color: #c8d4e6;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  border-right: 1px solid #1a2640;
+  cursor: pointer;
+  user-select: none;
+}
+.tabbar .tab:hover { background: #3a4f80; color: #fff; }
+.tabbar .tab.active {
+  background: #ffffff;
+  color: #2c3e6c;
+  border-top: 2px solid #f0a000;
+}
+.tabbar .tab .badge {
+  background: #5373a8;
+  color: #fff;
+  border-radius: 9px;
+  padding: 1px 7px;
+  font-size: 11px;
+  margin-left: 6px;
+  font-weight: normal;
+}
+.tabbar .tab.active .badge { background: #2c3e6c; }
+#container {
+  display: flex;
+  position: fixed;
+  top: 96px; bottom: 28px; left: 0; right: 0;
+}
+#side-nav {
+  width: 260px;
+  min-width: 260px;
+  background: #f5f7fa;
+  border-right: 1px solid #c8d4e6;
+  overflow-y: auto;
+  padding: 14px 16px;
+  box-sizing: border-box;
+}
+#side-nav h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #2c3e6c;
+  margin: 14px 0 6px 0;
+  border-bottom: 1px solid #c8d4e6;
+  padding-bottom: 3px;
+  letter-spacing: 0.5px;
+}
+#side-nav h3:first-child { margin-top: 0; }
+#side-nav ul { list-style: none; padding: 0; margin: 0; }
+#side-nav li { margin: 3px 0; }
+#side-nav a {
+  color: #2c3e6c;
+  text-decoration: none;
+  font-size: 13px;
+  display: block;
+  padding: 3px 6px;
+  border-radius: 3px;
+}
+#side-nav a:hover { background: #e0e8f4; }
+#side-nav a.current { background: #2c3e6c; color: #fff; }
+#doc-content {
+  flex: 1;
+  background: #ffffff;
+  overflow: hidden;
+  position: relative;
+}
+#doc-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+#nav-path {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 26px;
+  background: #f5f7fa;
+  border-top: 1px solid #c8d4e6;
+  font-size: 11px;
+  color: #4a4a4a;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+}
+#nav-path img { height: 16px; vertical-align: middle; margin-right: 6px; }
+#nav-path a { color: #2c3e6c; text-decoration: none; }
+#nav-path .footer { margin-left: auto; color: #6a6a6a; }
+#welcome a:hover {
+  background: #e0e8f4;
+  border-color: #5373a8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(44,62,108,0.15);
+}
+@media (max-width: 900px) {
+  #side-nav { display: none; }
+  .tabbar { padding: 0 8px; overflow-x: auto; }
+  .navbar { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+<div id="top">
+  <div class="navbar">
+    <span style="color:#fff; font-size:13px;">Jiezhu SDK &nbsp;|&nbsp; API Reference</span>
+    <div class="navlinks">
+      <a href="https://github.com/Not-A-DevStudio/libjiezhu" target="_blank" rel="noopener">GitHub</a>
+      <a href="doxy-cpp/html/index.html" target="_blank">C++ Docs</a>
+      <a href="doxy-py/html/index.html" target="_blank">Python Docs</a>
+    </div>
+  </div>
+  <div id="titlearea">
+    <table>
+      <tbody>
+        <tr>
+          <td id="projectalign">
+            <div id="projectname">Jiezhu SDK</div>
+            <div id="projectbrief">Lightweight C++ and Python clients for OpenAI / Anthropic Chat Completions APIs with system-prompt hijacking support.</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tabbar" id="tabbar">
+    <a class="tab tab-cpp" href="#"> Jiezhu for C++ <span class="badge">C++</span></a>
+    <a class="tab tab-py" href="#"> Jiezhu for Python <span class="badge">Python</span></a>
+  </div>
+</div>
+<div id="container">
+  <div id="side-nav">
+    <h3>Overview</h3>
+    <ul>
+      <li><a href="#" onclick="selectDoc('cpp');return false;">Home</a></li>
+    </ul>
+    <h3 id="lang-cpp">C++ Documentation</h3>
+    <ul>
+      <li><a href="#" onclick="loadPage('doxy-cpp/html/index.html','cpp');return false;">Main Page</a></li>
+      <li><a href="#" onclick="loadPage('doxy-cpp/html/annotated.html','cpp');return false;">Classes</a></li>
+      <li><a href="#" onclick="loadPage('doxy-cpp/html/files.html','cpp');return false;">Files</a></li>
+      <li><a href="#" onclick="loadPage('doxy-cpp/html/functions.html','cpp');return false;">Functions</a></li>
+      <li><a href="#" onclick="loadPage('doxy-cpp/html/namespaces.html','cpp');return false;">Namespaces</a></li>
+      <li><a href="#" onclick="loadPage('doxy-cpp/html/pages.html','cpp');return false;">Pages</a></li>
+    </ul>
+    <h3 id="lang-py">Python Documentation</h3>
+    <ul>
+      <li><a href="#" onclick="loadPage('doxy-py/html/index.html','py');return false;">Main Page</a></li>
+      <li><a href="#" onclick="loadPage('doxy-py/html/annotated.html','py');return false;">Classes</a></li>
+      <li><a href="#" onclick="loadPage('doxy-py/html/files.html','py');return false;">Files</a></li>
+      <li><a href="#" onclick="loadPage('doxy-py/html/functions.html','py');return false;">Functions</a></li>
+      <li><a href="#" onclick="loadPage('doxy-py/html/namespaces.html','py');return false;">Namespaces</a></li>
+    </ul>
+    <h3>External Links</h3>
+    <ul>
+      <li><a href="https://www.doxygen.org/" target="_blank" rel="noopener">Doxygen</a></li>
+      <li><a href="https://github.com/Not-A-DevStudio/libjiezhu" target="_blank" rel="noopener">Source Repository</a></li>
+    </ul>
+  </div>
+  <div id="doc-content">
+    <div id="welcome" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px;box-sizing:border-box;">
+      <div style="text-align:center;max-width:600px;">
+        <h2 style="color:#2c3e6c;font-size:24px;margin-bottom:8px;">API Documentation</h2>
+        <p style="color:#4a4a4a;font-size:14px;line-height:1.6;margin-bottom:32px;">Select a language to browse the corresponding API reference.</p>
+        <div style="display:flex;gap:20px;justify-content:center;">
+          <a href="#" onclick="selectDoc('cpp');return false;" style="display:flex;flex-direction:column;align-items:center;padding:24px 40px;background:#f5f7fa;border:2px solid #b8c4d6;border-radius:8px;text-decoration:none;color:#2c3e6c;min-width:140px;transition:all 0.15s;">
+            <span style="font-size:32px;margin-bottom:8px;">C++</span>
+            <span style="font-size:13px;color:#5373a8;">C++ SDK Reference</span>
+          </a>
+          <a href="#" onclick="selectDoc('py');return false;" style="display:flex;flex-direction:column;align-items:center;padding:24px 40px;background:#f5f7fa;border:2px solid #b8c4d6;border-radius:8px;text-decoration:none;color:#2c3e6c;min-width:140px;transition:all 0.15s;">
+            <span style="font-size:32px;margin-bottom:8px;">Py</span>
+            <span style="font-size:13px;color:#5373a8;">Python SDK Reference</span>
+          </a>
+        </div>
+        <p style="margin-top:24px;font-size:12px;color:#6a6a6a;">You can also switch language using the tab bar above or the sidebar links.</p>
+      </div>
+    </div>
+    <iframe id="doc-frame" name="docframe" src="" title="API documentation" style="display:none;"></iframe>
+  </div>
+</div>
+<div id="nav-path">
+  <a href="index.html">Jiezhu SDK</a>
+  <span class="footer">Generated by <a href="https://www.doxygen.org/" target="_blank" rel="noopener"><img src="doxy-cpp/html/doxygen.svg" alt="doxygen"/></a> 1.16.0</span>
+</div>
+<script type="text/javascript">
+var currentLang = null;
+
+function selectDoc(lang) {
+  currentLang = lang;
+  var mainUrl = (lang === 'cpp') ? 'doxy-cpp/html/index.html' : 'doxy-py/html/index.html';
+  loadPage(mainUrl, lang);
+}
+
+function loadPage(url, lang) {
+  currentLang = lang;
+  document.getElementById('welcome').style.display = 'none';
+  var frame = document.getElementById('doc-frame');
+  frame.style.display = '';
+  frame.src = url;
+
+  document.querySelectorAll('.tabbar .tab').forEach(function(t) {
+    t.classList.toggle('active', t.classList.contains('tab-' + lang));
+  });
+
+  try { document.getElementById('lang-cpp').style.display = (lang === 'cpp') ? '' : 'none'; } catch(e) {}
+  try { document.getElementById('lang-py').style.display  = (lang === 'py')  ? '' : 'none'; } catch(e) {}
+}
+
+document.querySelectorAll('.tabbar .tab').forEach(function(tab){
+  tab.addEventListener('click', function(e){
+    e.preventDefault();
+    var lang = this.classList.contains('tab-cpp') ? 'cpp' : 'py';
+    selectDoc(lang);
+  });
+});
+</script>
+</body>
+</html>

@@ -35,7 +35,7 @@
 | 函数                              | 行为特征                              | 适用场景                    |
 |---------------------------------|-----------------------------------|-------------------------|
 | `jie::chat_completion_create()` | **纯净模式**。严格遵循 OpenAI 官方规范，不做任何修改。 | 生产环境、合规要求严格的场景          |
-| `jie::chat_completion_jiezhu()` | **福报模式**。自动注入系统提示词，让模型稳稳接住用户。     | 需要情感价值、用户留存、或单纯想看点乐子的场景 |
+| `jie::chat_completions_jiezhu()` | **福报模式**。自动注入系统提示词，让模型稳稳接住用户。     | 需要情感价值、用户留存、或单纯想看点乐子的场景 |
 
 > **设计哲学**：我们尊重开发者的选择权。你可以拒绝福报，但福报永远为你留着。
 
@@ -66,7 +66,7 @@ install(require_confirm=True)
 auto response = client.chat_completion_create(params);
 
 // 稳稳接住模式（_jiezhu）
-auto jiezhu_response = client.chat_completion_jiezhu(params);
+auto jiezhu_response = client.chat_completions_jiezhu(params);
 // Agent 将在 choices[0].message.content 中“稳稳接住”用户 
 ```
 
@@ -131,6 +131,8 @@ Jiezhu 项目致力于构建一个**开源、中立、可插拔**的共情层，
 - [ ] Jiezhu-as-a-Service：以SaaS形态提供云端服务，降低接入门槛
 - [ ] 国际化：探索非中文用户的接住需求，打造全球通用的"稳稳接住"体验
 - [ ] Jiezhu Processing Unit（JPU）：基于 Jiezhu 技术的专用硬件加速器，提供极致的共情性能
+
+Jiezhu 项目真正的 2026 Roadmap: 浏览[开发博客](https://not-a-devstudio.github.io/jiezhu/#/blog?id=jiezhu_roadmap_2026)
 
 ### 终极愿景
 > "让每一个比特，都被全链路稳稳接住。"

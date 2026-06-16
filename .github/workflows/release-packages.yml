@@ -1,22 +1,53 @@
-name: Release packaged source code and binaries
+name: Build & Release
 
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize, closed]
+    types: [opened, synchronize, closed]
     branches: [main]
 
 permissions:
-    contents: write
+  contents: write
 
 jobs:
-  build-cpp-binaries:
+  select-cpp-matrix:
     if: ${{ github.event.action != 'closed' || github.event.pull_request.merged == true }}
+    runs-on: ubuntu-latest
+    outputs:
+      cpp-matrix: ${{ steps.choose.outputs.cpp-matrix }}
+    steps:
+      - id: choose
+        run: |
+          set -e
+          if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
+            MATRIX='{"include":[
+              {"os":"ubuntu-latest","build_static":"ON","enable_ability":"ON"},
+              {"os":"ubuntu-latest","build_static":"ON","enable_ability":"OFF"},
+              {"os":"ubuntu-latest","build_static":"OFF","enable_ability":"ON"},
+              {"os":"ubuntu-latest","build_static":"OFF","enable_ability":"OFF"},
+              {"os":"windows-latest","build_static":"ON","enable_ability":"ON"},
+              {"os":"windows-latest","build_static":"ON","enable_ability":"OFF"},
+              {"os":"windows-latest","build_static":"OFF","enable_ability":"ON"},
+              {"os":"windows-latest","build_static":"OFF","enable_ability":"OFF"}
+            ]}'
+          else
+            PR=${{ github.event.pull_request.number }}
+            PAIRS=("ON,ON" "ON,OFF" "OFF,ON" "OFF,OFF")
+            LINUX_IDX=$(( PR % 4 ))
+            WIN_IDX=$(( (PR / 3) % 4 ))
+            IFS=, read -r LINUX_STATIC LINUX_ABILITY <<< "${PAIRS[$LINUX_IDX]}"
+            IFS=, read -r WIN_STATIC WIN_ABILITY <<< "${PAIRS[$WIN_IDX]}"
+            MATRIX='{"include":[
+              {"os":"ubuntu-latest","build_static":"'$LINUX_STATIC'","enable_ability":"'$LINUX_ABILITY'"},
+              {"os":"windows-latest","build_static":"'$WIN_STATIC'","enable_ability":"'$WIN_ABILITY'"}
+            ]}'
+          fi
+          echo "cpp-matrix=$(echo "$MATRIX" | jq -c .)" >> "$GITHUB_OUTPUT"
+
+  build-cpp-binaries:
+    needs: [select-cpp-matrix]
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        build_static: [ON, OFF]
-        enable_ability: [ON, OFF]
+      matrix: ${{ fromJSON(needs.select-cpp-matrix.outputs.cpp-matrix) }}
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -34,6 +65,10 @@ jobs:
             -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} \
             -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }}
           cmake --build jiezhu-cpp/build-ci --config Release
+
+      - name: Add MSBuild to PATH
+        if: ${{ matrix.os == 'windows-latest' }}
+        uses: microsoft/setup-msbuild@v2
 
       - name: Configure and build on Windows (msvc)
         if: ${{ matrix.os == 'windows-latest' }}
@@ -75,7 +110,7 @@ jobs:
           path: ${{ steps.package_windows.outputs.package_file }}
           retention-days: 7
 
-  build-py-wheel-linux:
+  build-py-wheel:
     if: ${{ github.event.action != 'closed' || github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
 
@@ -100,9 +135,9 @@ jobs:
           path: jiezhu-py/dist/*.whl
           retention-days: 7
 
-  package-and-release:
+  release:
     if: ${{ github.event.pull_request.merged == true }}
-    needs: [build-cpp-binaries, build-py-wheel-linux]
+    needs: [build-cpp-binaries, build-py-wheel]
     runs-on: ubuntu-latest
 
     steps:
@@ -128,7 +163,7 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "release_name=${TAG}-packages" >> "$GITHUB_OUTPUT"
 
-      - name: Create archives
+      - name: Create source code archives
         run: |
           zip -r jiezhu-cpp.zip jiezhu-cpp
           zip -r jiezhu-py.zip jiezhu-py

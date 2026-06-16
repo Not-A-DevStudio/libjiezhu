@@ -1,3 +1,11 @@
+/**
+ * @file test_chat_create_curl.cpp
+ * @brief Catch2 tests for @ref jie::client::chat_completions_create.
+ *
+ * Verifies the OpenAI-style blocking call: it posts the expected
+ * request, sets the right headers, and parses the standard response
+ * shape via @ref jie::chat_completion_response.
+ */
 #include <catch2/catch_test_macros.hpp>
 
 #include <jie/chat.hpp>
@@ -7,6 +15,7 @@
 
 #include "test_http_server.hpp"
 
+/// @brief Verifies request URL/headers and the parsed response payload.
 TEST_CASE("chat_completions_create uses curl and parses JSON") {
 	test_support::tiny_http_server server([](const std::string&) {
 		const std::string body = R"({

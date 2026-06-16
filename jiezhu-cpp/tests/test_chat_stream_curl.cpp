@@ -1,3 +1,10 @@
+/**
+ * @file test_chat_stream_curl.cpp
+ * @brief Catch2 tests for @ref jie::client::chat_completions_stream.
+ *
+ * Verifies that server-sent events are parsed incrementally and the
+ * @c [DONE] sentinel is observed by the user callback.
+ */
 #include <catch2/catch_test_macros.hpp>
 
 #include <jie/chat.hpp>
@@ -7,6 +14,8 @@
 
 #include "test_http_server.hpp"
 
+/// @brief Verifies SSE parsing, delta aggregation and @c [DONE]
+/// detection.
 TEST_CASE("chat_completions_stream consumes SSE events") {
 	test_support::tiny_http_server server([](const std::string&) {
 		std::string sse;

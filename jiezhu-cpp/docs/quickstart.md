@@ -15,7 +15,7 @@ The following examples demonstrate:
 ```bash
 git clone https://github.com/Not-A-DevStudio/libjiezhu.git
 cd libjiezhu
-````
+```
 
 2. Or just download the latest release from [GitHub Releases](https://github.com/Not-A-DevStudio/libjiezhu/releases)
 
