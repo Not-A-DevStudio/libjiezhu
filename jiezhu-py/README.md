@@ -11,7 +11,7 @@ To use this library, you need to have Python 3.8 or higher installed. This libra
 ### Install from PyPI
 
 ```bash
-pip install jiezhu
+pip install jiezhu[openai] # or jiezhu[claude] if you want claude API support
 ```
 
 ### Install from Source
