@@ -66,6 +66,10 @@ jobs:
             -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }}
           cmake --build jiezhu-cpp/build-ci --config Release
 
+      - name: Add MSBuild to PATH
+        if: ${{ matrix.os == 'windows-latest' }}
+        uses: microsoft/setup-msbuild@v2
+
       - name: Configure and build on Windows (msvc)
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
