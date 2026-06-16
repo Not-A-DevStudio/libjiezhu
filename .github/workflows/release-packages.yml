@@ -41,7 +41,7 @@ jobs:
               {"os":"windows-latest","build_static":"'$WIN_STATIC'","enable_ability":"'$WIN_ABILITY'"}
             ]}'
           fi
-          echo "cpp-matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "cpp-matrix=$(echo "$MATRIX" | jq -c .)" >> "$GITHUB_OUTPUT"
 
   build-cpp-binaries:
     needs: [select-cpp-matrix]
