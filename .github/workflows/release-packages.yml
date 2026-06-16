@@ -74,7 +74,7 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
         run: |
-          cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci -G "Visual Studio 17 2022" -A x64 -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }}
+          cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }}
           cmake --build jiezhu-cpp/build-ci --config Release
 
       - name: Package Linux binaries
