@@ -212,6 +212,89 @@ Note:
 
 - There is currently no Anthropic streaming equivalent in the public API; the Anthropic path is limited to non-streaming requests.
 
+## 4) Responses API
+
+### `struct response_request`
+
+Request body for the OpenAI Responses API (`/v1/responses`).
+
+Fields:
+
+- `std::string model` — Model identifier (required)
+- `std::string input_text` — Plain text input. When non-empty, used as the `input` string and takes precedence over `input_messages`
+- `std::vector<message> input_messages` — Structured multi-turn input as message array
+- `std::string instructions` — System / developer instructions for the model
+- `bool stream = false` — Whether to stream via SSE. Set internally by `responses_stream`
+- `std::optional<double> temperature` — Sampling temperature
+- `std::optional<int> max_output_tokens` — Maximum output tokens (maps to `max_output_tokens` in the API)
+- `nlohmann::json extra = object()` — Forward-compat bucket for additional fields
+
+Methods:
+- `nlohmann::json to_json() const` — Serializes the request. Uses `extra` as base, then overwrites `model`, `input`, `stream`, `instructions`, etc.
+
+### `struct response_response`
+
+Non-streaming Responses API response.
+
+Fields:
+
+- `nlohmann::json raw` — Raw JSON response from the server
+- `std::string id` — Best-effort extraction of `id`
+- `std::string model` — Best-effort extraction of `model`
+
+Methods:
+- `std::string first_content() const` — Returns the text from `output[0].content[*].text` (structured format) or `output_text` (convenience field), or empty string if neither is present
+
+### `struct response_stream_event`
+
+Streaming SSE event wrapper for the Responses API.
+
+Fields:
+
+- `nlohmann::json raw` — Raw JSON data of this event (if parsable)
+- `std::string event_type` — SSE event type (e.g. `"response.output_text.delta"`)
+- `std::string delta` — Best-effort extraction of incremental text from `data.delta`
+- `bool done = false` — Set to `true` when a terminal event (`response.completed` or `error`) is received
+
+### `class client` — Responses API Methods
+
+#### Non-Streaming
+
+1. `response_response responses_create(const response_request& request) const`
+
+Behavior:
+- POST to: `{base_url}/responses`
+- Headers: same as `chat_completions_create` (`Content-Type`, `Authorization`, `OpenAI-Organization`, `OpenAI-Project`)
+- Errors: same as `chat_completions_create`
+
+2. `response_response responses_jiezhu(const response_request& request) const` and `response_response responses_jiezhu(const response_request& request, const std::string& prompt_prefix) const`
+
+Behavior:
+- Prepends the jiezhu prefix to `instructions` and any system messages in `input_messages`, then delegates to `responses_create`
+- The `instructions` field is the primary target (equivalent to system messages in Chat Completions)
+- Errors: same as `responses_create`
+- If `JIE_ENABLE_JIEZHU_ABLITY` is not defined, throws `std::runtime_error`
+
+#### Streaming
+
+3. `void responses_stream(response_request request, const std::function<bool(const response_stream_event&)>& on_event) const`
+
+Key Points:
+- Sets `request.stream = true` before sending
+- GET/POST to `{base_url}/responses`
+- Header `Accept: text/event-stream`
+- SSE parsing handles `event:` and `data:` lines (Responses API format)
+- Events like `response.output_text.delta` carry incremental text in `event.delta`
+- The terminal event (`response.completed` or `error`) sets `event.done = true` and terminates the stream
+- Callback `on_event`: return `true` to continue, `false` to cancel
+
+4. `void responses_stream_jiezhu(const response_request& request, const std::function<bool(const response_stream_event&)>& on_event) const` and `void responses_stream_jiezhu(const response_request& request, const std::string& prompt_prefix, const std::function<bool(const response_stream_event&)>& on_event) const`
+
+Behavior:
+- Prepends the jiezhu prefix, then delegates to `responses_stream`
+- Errors: same as `responses_stream`
+- If `JIE_ENABLE_JIEZHU_ABLITY` is not defined, throws `std::runtime_error`
+
 ## 3) Aggregated Header
 
 - `jie/jiezhu.hpp` currently only `#include <jie/chat.hpp>`, providing a stable entry point for callers.

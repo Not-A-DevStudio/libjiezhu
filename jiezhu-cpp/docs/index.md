@@ -7,7 +7,7 @@
 
 The current public headers of this library:
 
-- `jie/jiezhu.hpp`: Aggregated header, and Jiezhu-specific API (e.g., `chat_completion_jiezhu`)
+- `jie/jiezhu.hpp`: Aggregated header, and Jiezhu-specific API (e.g., `chat_completions_jiezhu`)
 - `jie/chat.hpp`: Core API (data structures + `jie::client`)
 
 ## Quick Navigation
@@ -31,5 +31,5 @@ In this repository's CMake configuration, dependencies are built and linked as s
 
 ## Security
 
-- You have to enable the option `JIEZHU_ENABLE_JIEZHU_ABLITY` to use the modified OpenAI API ability of `jiezhu` (e.g., `chat_completion_jiezhu`), which will add a prefix to the system prompt. 
+- You have to enable the option `JIEZHU_ENABLE_JIEZHU_ABLITY` to use the modified OpenAI API ability of `jiezhu` (e.g., `chat_completions_jiezhu`), which will add a prefix to the system prompt. 
 - If you enable this option, the default name of your pre-built library will be `libjiezhu_full` instead of `libjiezhu`.
