@@ -1,3 +1,12 @@
+/**
+ * @file test_chat_errors_curl.cpp
+ * @brief Catch2 tests for HTTP error handling in
+ * @ref jie::client::chat_completions_create.
+ *
+ * Verifies that non-2xx responses are converted to a
+ * @c std::runtime_error whose message contains the status code and
+ * response body.
+ */
 #include <catch2/catch_test_macros.hpp>
 
 #include <jie/chat.hpp>
@@ -8,6 +17,8 @@
 
 #include "test_http_server.hpp"
 
+/// @brief Verifies that a 401 response surfaces as a
+/// @c std::runtime_error with the status and body in @c what().
 TEST_CASE("non-2xx responses throw with body") {
 	test_support::tiny_http_server server([](const std::string&) {
 		return test_support::build_http_response("401 Unauthorized", "text/plain", "bad key");

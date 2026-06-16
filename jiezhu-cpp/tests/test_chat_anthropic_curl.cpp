@@ -1,3 +1,12 @@
+/**
+ * @file test_chat_anthropic_curl.cpp
+ * @brief Catch2 tests for the Anthropic Claude Messages path.
+ *
+ * Verifies that @ref jie::chat_completion_response::first_content
+ * handles both the OpenAI and Anthropic response shapes, and that
+ * @ref jie::client::chat_completions_create_anthropic sends the right
+ * URL, headers and body.
+ */
 #include <catch2/catch_test_macros.hpp>
 
 #include <jie/chat.hpp>
@@ -7,6 +16,7 @@
 
 #include "test_http_server.hpp"
 
+/// @brief Verifies that @c first_content() works for both providers.
 TEST_CASE("first_content is consistent for OpenAI and Anthropic response shapes") {
 	jie::chat_completion_response openai_resp;
 	openai_resp.raw = nlohmann::json::parse(R"({
@@ -22,6 +32,9 @@ TEST_CASE("first_content is consistent for OpenAI and Anthropic response shapes"
 	REQUIRE(anthropic_resp.first_content() == "same-text");
 }
 
+/// @brief Verifies the full Claude request/response flow including the
+/// @c x-api-key header, lifted @c system prompt and
+/// @c /messages endpoint.
 TEST_CASE("chat_completions_create_anthropic sends Claude-style request and parses response") {
 	test_support::tiny_http_server server([](const std::string&) {
 		const std::string body = R"({

@@ -1,3 +1,12 @@
+/**
+ * @file test_http_server.hpp
+ * @brief Single-threaded loopback HTTP server used by the Catch2 tests.
+ *
+ * Provides a RAII helper that binds to an ephemeral port on the
+ * loopback interface, dispatches incoming connections to a user-supplied
+ * handler and exposes the captured request for assertions. The class is
+ * intentionally minimal — it is not intended for production use.
+ */
 #pragma once
 
 #include <atomic>
@@ -45,6 +54,11 @@
 
 namespace test_support {
 
+/// @brief RAII wrapper that initializes Winsock on Windows.
+///
+/// @c socket_runtime is constructed once via @c tiny_http_server and
+/// guarantees matching @c WSACleanup on Windows. On POSIX systems the
+/// type is empty and incurs no cost.
 struct socket_runtime {
 	socket_runtime() {
 #if defined(_WIN32)
@@ -60,6 +74,9 @@ struct socket_runtime {
 	}
 };
 
+/// @brief Return a lower-cased copy of @p s.
+/// @param s Input string.
+/// @return Lowercase copy of @p s.
 inline std::string to_lower_copy(std::string s) {
 	for (char& ch : s) {
 		ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -67,10 +84,18 @@ inline std::string to_lower_copy(std::string s) {
 	return s;
 }
 
+/// @brief Test whether @p s starts with @p prefix.
+/// @param s Candidate string.
+/// @param prefix Prefix to look for.
+/// @return @c true if @p s begins with @p prefix, @c false otherwise.
 inline bool starts_with(std::string_view s, std::string_view prefix) {
 	return s.size() >= prefix.size() && s.substr(0, prefix.size()) == prefix;
 }
 
+/// @brief Case-insensitive substring search.
+/// @param haystack String to search in.
+/// @param needle Substring to look for.
+/// @return @c true if @p haystack contains @p needle (ignoring case).
 inline bool icontains(std::string_view haystack, std::string_view needle) {
 	std::string h(haystack);
 	std::string n(needle);
@@ -79,6 +104,13 @@ inline bool icontains(std::string_view haystack, std::string_view needle) {
 	return h.find(n) != std::string::npos;
 }
 
+/// @brief Build a minimal HTTP/1.1 response with @c Connection: close.
+/// @param status Status line text (e.g. @c "200 OK").
+/// @param content_type Value for the @c Content-Type header.
+/// @param body Response body. The function sets @c Content-Length for
+/// you and appends it to the response.
+/// @return The fully formatted HTTP response, ready to be written to a
+/// socket.
 inline std::string build_http_response(std::string_view status,
 								   std::string_view content_type,
 								   std::string body) {
@@ -98,10 +130,23 @@ inline std::string build_http_response(std::string_view status,
 	return resp;
 }
 
+/// @brief A single-threaded, loopback-only HTTP/1.1 test server.
+///
+/// The server binds to an ephemeral port on @c 127.0.0.1, accepts
+/// connections one at a time, hands the raw request bytes to a
+/// user-supplied handler, and writes the handler's response back. The
+/// most recently received request can be retrieved with
+/// @ref last_request() for assertion purposes.
 class tiny_http_server {
 public:
+	/// @brief Handler signature. Receives the raw request string and
+	/// must return the full HTTP response (headers + body).
 	using handler_t = std::function<std::string(const std::string& request)>;
 
+	/// @brief Construct and start a server backed by @p handler.
+	/// @param handler Function used to synthesize each response.
+	/// @throw std::runtime_error If the listening socket cannot be
+	/// created, bound or put into the listening state.
 	explicit tiny_http_server(handler_t handler) : handler_(std::move(handler)) {
 		static socket_runtime rt;
 
@@ -145,22 +190,35 @@ public:
 		worker_ = std::thread([this] { this->run(); });
 	}
 
+	/// @brief Stop the server (if running) and release the listening
+	/// socket. Safe to call multiple times.
 	~tiny_http_server() {
 		stop();
 	}
 
+	/// @brief Return the ephemeral port the server bound to.
+	/// @return The TCP port in host byte order.
 	uint16_t port() const { return port_; }
 
+	/// @brief Block up to @p timeout waiting for the first request to
+	/// arrive.
+	/// @param timeout Maximum time to wait.
+	/// @return @c true if a request was observed before the timeout
+	/// elapsed, @c false otherwise.
 	bool wait_for_request(std::chrono::milliseconds timeout) {
 		std::unique_lock<std::mutex> lock(req_mu_);
 		return req_cv_.wait_for(lock, timeout, [&] { return request_count_ > 0; });
 	}
 
+	/// @brief Return a copy of the most recently received raw request.
+	/// @return Raw request string (headers + body).
 	std::string last_request() const {
 		std::lock_guard<std::mutex> lock(req_mu_);
 		return last_request_;
 	}
 
+	/// @brief Stop the accept loop and close the listening socket.
+	/// Idempotent.
 	void stop() {
 		bool expected = true;
 		if (!running_.compare_exchange_strong(expected, false)) return;
@@ -186,6 +244,7 @@ public:
 	}
 
 private:
+	/// @brief Accept loop run on the worker thread.
 	void run() {
 		while (running_.load()) {
 			sockaddr_in peer{};
