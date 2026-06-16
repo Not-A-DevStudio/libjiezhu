@@ -1,4 +1,10 @@
-"""Regression tests for existing OpenAI monkey-patching functionality."""
+"""@file test_openai_hijack.py
+@brief Regression tests for the OpenAI monkey-patching flow.
+
+Covers the :func:`install` / :func:`uninstall` lifecycle, the
+prefix-prepending logic, the empty-prefix passthrough, and the
+interactive confirmation prompt.
+"""
 from __future__ import annotations
 
 import io
@@ -9,7 +15,7 @@ import pytest
 
 
 class TestInstallUninstall:
-    """install() / uninstall() lifecycle for OpenAI SDK."""
+    """@brief install() / uninstall() lifecycle for the OpenAI SDK."""
 
     def test_install_patches_openai_create(self, fake_openai, capture_output):
         from jiezhu.hijack import install, _INSTALLED
@@ -45,7 +51,7 @@ class TestInstallUninstall:
 
 
 class TestPrefixLogic:
-    """OpenAI message prefix prepending logic."""
+    """@brief OpenAI message-prefix prepending logic."""
 
     def test_prefix_prepended_to_system_message(self, fake_openai, capture_output):
         from jiezhu.hijack import install
@@ -132,7 +138,7 @@ class TestPrefixLogic:
 
 
 class TestConfirmation:
-    """require_confirm behavior."""
+    """@brief ``require_confirm`` behavior."""
 
     def test_require_confirm_true_user_accepts(self, fake_openai):
         from jiezhu.hijack import install

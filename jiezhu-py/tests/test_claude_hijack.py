@@ -1,4 +1,10 @@
-"""Tests for Claude/Anthropic API monkey-patching support."""
+"""@file test_claude_hijack.py
+@brief Tests for the Claude / Anthropic API monkey-patching support.
+
+Covers the install/uninstall lifecycle, the three ``system``
+representations (str, list-of-content-blocks, missing), the
+empty-prefix passthrough and the interactive confirmation prompt.
+"""
 from __future__ import annotations
 
 import io
@@ -9,7 +15,7 @@ import pytest
 
 
 class TestClaudeInstallUninstall:
-    """install() / uninstall() lifecycle for Anthropic SDK."""
+    """@brief install() / uninstall() lifecycle for the Anthropic SDK."""
 
     def test_install_patches_claude_create(self, fake_both, capture_output):
         from jiezhu.hijack import install
@@ -34,8 +40,12 @@ class TestClaudeInstallUninstall:
         assert FakeMessages.create is original_create
 
     def test_claude_skipped_when_not_installed(self, fake_openai, capture_output):
-        """When anthropic is NOT importable, install() should still succeed
-        (only OpenAI is patched) and not raise any error."""
+        """@brief Verify that :func:`install` succeeds even when
+        ``anthropic`` is not importable.
+
+        Only the OpenAI targets are patched in that case; no error is
+        raised for the missing Anthropic SDK.
+        """
         # Ensure anthropic is NOT in sys.modules
         sys.modules.pop("anthropic", None)
         sys.modules.pop("anthropic.resources", None)
@@ -47,7 +57,7 @@ class TestClaudeInstallUninstall:
 
 
 class TestClaudePrefixLogic:
-    """Claude system-parameter prefix prepending logic."""
+    """@brief Claude ``system``-parameter prefix prepending logic."""
 
     def test_prefix_prepended_to_string_system(self, fake_both, capture_output):
         from jiezhu.hijack import install
@@ -162,7 +172,7 @@ class TestClaudePrefixLogic:
 
 
 class TestClaudeConfirmation:
-    """Claude confirmation behavior (should work the same as OpenAI)."""
+    """@brief Claude confirmation behavior (mirrors the OpenAI flow)."""
 
     def test_require_confirm_user_accepts_claude(self, fake_both):
         from jiezhu.hijack import install

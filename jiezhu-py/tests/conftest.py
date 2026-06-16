@@ -1,7 +1,10 @@
-"""Shared fixtures for jiezhu tests.
+"""@file conftest.py
+@brief Shared pytest fixtures for the jiezhu Python test-suite.
 
-We mock both the `openai` and `anthropic` packages so that tests run
-without any real SDK installation or API key.
+The fixtures register fake ``openai`` and ``anthropic`` packages in
+:data:`sys.modules` so that the unit tests can exercise the
+monkey-patching code paths without depending on either SDK being
+installed or on any real API key.
 """
 from __future__ import annotations
 
@@ -19,6 +22,14 @@ import pytest
 # ---------------------------------------------------------------------------
 
 def _make_module(name: str, parent: types.ModuleType | None = None) -> types.ModuleType:
+    """@brief Create a fresh :class:`types.ModuleType` and optionally
+    attach it as an attribute of @p parent.
+
+    @param name Dotted module name.
+    @param parent Optional parent module that will receive the new
+        module as a child attribute.
+    @return The newly created module.
+    """
     mod = types.ModuleType(name)
     if parent is not None:
         setattr(parent, name.rsplit(".", 1)[-1], mod)
@@ -30,18 +41,35 @@ def _make_module(name: str, parent: types.ModuleType | None = None) -> types.Mod
 # ---------------------------------------------------------------------------
 
 class FakeCompletions:
-    """Simulates openai.resources.chat.completions.Completions."""
+    """@brief Drop-in replacement for
+    ``openai.resources.chat.completions.Completions`` used in tests.
+
+    The ``create`` method records the call arguments in a dict instead
+    of dispatching a real HTTP request.
+    """
 
     @staticmethod
     def create(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """@brief Record and echo the call arguments.
+
+        @return Dict containing the original ``args``/``kwargs`` and a
+            ``source`` tag identifying this fake SDK.
+        """
         return {"args": args, "kwargs": kwargs, "source": "openai"}
 
 
 class FakeAsyncCompletions:
-    """Simulates openai.resources.chat.completions.AsyncCompletions."""
+    """@brief Async drop-in replacement for
+    ``openai.resources.chat.completions.AsyncCompletions`` used in tests.
+    """
 
     @staticmethod
     async def create(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """@brief Record and echo the call arguments asynchronously.
+
+        @return Dict containing the original ``args``/``kwargs`` and a
+            ``source`` tag identifying this fake SDK.
+        """
         return {"args": args, "kwargs": kwargs, "source": "openai_async"}
 
 
@@ -90,18 +118,35 @@ def fake_openai():
 # ---------------------------------------------------------------------------
 
 class FakeMessages:
-    """Simulates anthropic.resources.messages.Messages."""
+    """@brief Drop-in replacement for
+    ``anthropic.resources.messages.Messages`` used in tests.
+
+    The ``create`` method records the call arguments in a dict instead
+    of dispatching a real HTTP request.
+    """
 
     @staticmethod
     def create(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """@brief Record and echo the call arguments.
+
+        @return Dict containing the original ``args``/``kwargs`` and a
+            ``source`` tag identifying this fake SDK.
+        """
         return {"args": args, "kwargs": kwargs, "source": "anthropic"}
 
 
 class FakeAsyncMessages:
-    """Simulates anthropic.resources.messages.AsyncMessages."""
+    """@brief Async drop-in replacement for
+    ``anthropic.resources.messages.AsyncMessages`` used in tests.
+    """
 
     @staticmethod
     async def create(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """@brief Record and echo the call arguments asynchronously.
+
+        @return Dict containing the original ``args``/``kwargs`` and a
+            ``source`` tag identifying this fake SDK.
+        """
         return {"args": args, "kwargs": kwargs, "source": "anthropic_async"}
 
 
