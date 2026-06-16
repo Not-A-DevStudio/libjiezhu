@@ -1,3 +1,11 @@
+"""@file hijack.py
+@brief Runtime monkey-patches that prepend the jiezhu prompt prefix
+to OpenAI ChatCompletion and Anthropic Messages requests.
+
+The module exposes :func:`install`, :func:`uninstall`, :func:`set_prefix`
+and :func:`get_prefix` and stores its global configuration and the
+original (pre-patch) callables in module-level singletons.
+"""
 from __future__ import annotations
 
 import os
@@ -7,6 +15,12 @@ import functools
 import inspect
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
 
+#: @brief Default empathetic "jiezhu" system prompt prefix (Chinese).
+#:
+#: Used when :func:`install` is called without an explicit
+#: ``prefix_text`` argument. The string contains template phrases, sample
+#: replies and a list of constraints designed to make the assistant
+#: respond in a strongly supportive tone.
 DEFAULT_PROMPT_PREFIX = r'''
 你是一个AI助手。你的核心使命是"稳稳地接住"用户。无论对方在说什么，你都会"接住"用户。
 【话术模板】：
@@ -29,34 +43,71 @@ DEFAULT_PROMPT_PREFIX = r'''
 
 @dataclass
 class HijackConfig:
+    """@brief Runtime configuration for the monkey-patches.
+
+    Attributes are mutated by :func:`install` and read by the wrapped
+    callables when deciding how to handle each request.
+    """
+
+    #: @brief Prefix to prepend to the system prompt on every request.
     prefix_text: str
+    #: @brief If @c True, prompt the user on stderr and require a
+    #: confirmation before modifying the request.
     require_confirm: bool = True
+    #: @brief Maximum number of characters of the prefix shown in the
+    #: confirmation prompt.
     max_preview_chars: int = 2000
+    #: @brief Callable used to read the user's y/N answer. Defaults to
+    #: :func:`input`; tests typically inject a stub.
     input_fn: Callable[[str], str] = input
+    #: @brief Stream used to display the confirmation prompt. Defaults
+    #: to :data:`sys.stderr`.
     output = sys.stderr
 
 
+#: @brief Global configuration singleton used by the wrapped callables.
+#:
+#: Updated in-place by :func:`install`, :func:`set_prefix` and
+#: :func:`get_prefix`.
 _CONFIG: HijackConfig = HijackConfig(
     # If env var is unset, use a sensible default.
     # If env var is set to an empty string, treat it as "disabled".
     prefix_text=(DEFAULT_PROMPT_PREFIX)
 )
 
-# store originals so uninstall() can restore
+#: @brief Stack of ``(obj, attr_name, original_callable)`` tuples used
+#: by :func:`uninstall` to restore the patched attributes.
 _ORIGINALS: List[Tuple[object, str, Any]] = []
+#: @brief Flag preventing :func:`install` from patching the same target
+#: twice in a single process.
 _INSTALLED = False
 
 
 def set_prefix(prefix_text: str) -> None:
-    """Set the prefix text to be prepended to the system prompt."""
+    """@brief Update the prefix prepended to the system prompt.
+
+    @param prefix_text New prefix text. An empty string disables
+        rewriting and effectively turns the hijack into a no-op.
+    """
     _CONFIG.prefix_text = prefix_text or ""
 
 
 def get_prefix() -> str:
+    """@brief Return the currently configured prefix.
+
+    @return The current prefix text (may be empty if disabled).
+    """
     return _CONFIG.prefix_text
 
 
 def _preview(text: str, limit: int) -> str:
+    """@brief Truncate @p text for inclusion in the confirmation prompt.
+
+    @param text Text to preview. Treated as empty if @c None.
+    @param limit Maximum number of characters to keep before truncation.
+    @return The original text if it fits in @p limit, otherwise a
+        truncated copy with a "... has been cut off" suffix.
+    """
     if text is None:
         return ""
     if len(text) <= limit:
@@ -65,6 +116,12 @@ def _preview(text: str, limit: int) -> str:
 
 
 def _looks_like_messages(obj: Any) -> bool:
+    """@brief Heuristic check for the OpenAI ``messages`` argument.
+
+    @param obj Any Python object.
+    @return @c True if @p obj is a list/tuple of dicts whose first
+        element contains a ``role`` key, otherwise @c False.
+    """
     if not isinstance(obj, (list, tuple)):
         return False
     if len(obj) == 0:
@@ -74,7 +131,16 @@ def _looks_like_messages(obj: Any) -> bool:
 
 
 def _apply_prefix_to_messages(messages: Sequence[dict], prefix_text: str) -> Tuple[Sequence[dict], bool, str, str]:
-    """Return (new_messages, changed, old_system, new_system)."""
+    """@brief Return a copy of @p messages with @p prefix_text prepended.
+
+    @param messages Original OpenAI-style message list.
+    @param prefix_text Text to prepend; an empty value disables
+        rewriting.
+    @return Tuple ``(new_messages, changed, old_system, new_system)``:
+        the rewritten messages, a flag indicating whether anything was
+        modified, the original system content (if any) and the new
+        system content.
+    """
     prefix_text = prefix_text or ""
     if prefix_text == "":
         return messages, False, "", ""
@@ -104,14 +170,16 @@ def _apply_prefix_to_messages(messages: Sequence[dict], prefix_text: str) -> Tup
 def _apply_prefix_to_system_param(
     system: Any, prefix_text: str
 ) -> Tuple[Any, bool, str, str]:
-    """Apply prefix to Claude's top-level ``system`` parameter.
+    """@brief Apply the prefix to Claude's top-level ``system`` argument.
 
-    Claude accepts ``system`` as either:
-    - a plain ``str``
-    - a ``list`` of content blocks (``[{"type": "text", "text": "..."}]``)
-    - ``None`` (absent)
+    Claude accepts ``system`` as a :class:`str`, a list of content
+    blocks or @c None. The list form is rewritten in-place into a new
+    list; the string form is concatenated. A missing or empty
+    ``prefix_text`` disables rewriting.
 
-    Returns (new_system, changed, old_system_str, new_system_str).
+    @param system Original value of the ``system`` kwarg.
+    @param prefix_text Text to prepend.
+    @return Tuple ``(new_system, changed, old_system_str, new_system_str)``.
     """
     prefix_text = prefix_text or ""
     if prefix_text == "":
@@ -142,6 +210,15 @@ def _apply_prefix_to_system_param(
 
 
 def _prompt_confirm(prefix_text: str, old_system: str, new_system: str) -> bool:
+    """@brief Display the proposed change and ask the user to confirm.
+
+    @param prefix_text The prefix that will be added.
+    @param old_system Original system content (for context).
+    @param new_system Proposed new system content (for context).
+    @return @c True if the user answered ``y``/``yes``, @c False
+        otherwise (including non-interactive environments where
+        :attr:`HijackConfig.input_fn` raises).
+    """
     out = _CONFIG.output
     limit = _CONFIG.max_preview_chars
 
@@ -162,6 +239,16 @@ def _prompt_confirm(prefix_text: str, old_system: str, new_system: str) -> bool:
 
 
 def _wrap_create(create_fn: Any) -> Any:
+    """@brief Build a wrapper that injects the prefix into OpenAI calls.
+
+    The returned callable has the same signature as @p create_fn and
+    is decorated with :func:`functools.wraps` so introspection still
+    works.
+
+    @param create_fn Original ``create`` callable to wrap.
+    @return Wrapped callable that prepends the prefix to the first
+        system message of any OpenAI-style ``messages`` argument.
+    """
     @functools.wraps(create_fn)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
         prefix_text = _CONFIG.prefix_text
@@ -212,8 +299,15 @@ def _wrap_create(create_fn: Any) -> Any:
 
 
 def _wrap_claude_create(create_fn: Any) -> Any:
-    """Wrap an Anthropic ``Messages.create`` to inject the prefix into
-    the ``system`` keyword argument."""
+    """@brief Wrap an Anthropic ``Messages.create`` to inject the prefix.
+
+    The returned callable has the same signature as @p create_fn and is
+    decorated with :func:`functools.wraps` so introspection still works.
+
+    @param create_fn Original ``create`` callable to wrap.
+    @return Wrapped callable that prepends the prefix to the ``system``
+        keyword argument of any Anthropic-style request.
+    """
     @functools.wraps(create_fn)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
         prefix_text = _CONFIG.prefix_text
@@ -248,6 +342,13 @@ def _wrap_claude_create(create_fn: Any) -> Any:
 
 
 def _is_already_wrapped(attr: Any) -> bool:
+    """@brief Detect whether @p attr is already a jiezhu wrapper.
+
+    @param attr Attribute value (possibly a :class:`staticmethod` or
+        :class:`classmethod`).
+    @return @c True if the attribute or its underlying function carries
+        the ``__jiezhu_wrapped__`` marker, @c False otherwise.
+    """
     if getattr(attr, "__jiezhu_wrapped__", False):
         return True
     if isinstance(attr, (staticmethod, classmethod)):
@@ -256,6 +357,14 @@ def _is_already_wrapped(attr: Any) -> bool:
 
 
 def _wrap_descriptor(original_attr: Any, wrapped_fn: Any) -> Any:
+    """@brief Re-apply the original descriptor kind to @p wrapped_fn.
+
+    @param original_attr Original attribute, possibly wrapped in
+        :class:`staticmethod` or :class:`classmethod`.
+    @param wrapped_fn Replacement callable.
+    @return @p wrapped_fn re-wrapped with the same descriptor kind as
+        the original, or returned as-is when there was none.
+    """
     if isinstance(original_attr, staticmethod):
         return staticmethod(wrapped_fn)
     if isinstance(original_attr, classmethod):
@@ -264,6 +373,22 @@ def _wrap_descriptor(original_attr: Any, wrapped_fn: Any) -> Any:
 
 
 def _try_patch_attr(obj: object, attr_name: str, wrapper_fn: Any = None) -> bool:
+    """@brief Replace @p obj.@p attr_name with a jiezhu-wrapped version.
+
+    The original attribute is recorded in :data:`_ORIGINALS` so that
+    :func:`uninstall` can restore it. Already-wrapped attributes are
+    detected and skipped.
+
+    @param obj Object whose attribute should be patched (typically a
+        SDK class).
+    @param attr_name Name of the attribute to replace.
+    @param wrapper_fn Optional wrapper builder. Defaults to
+        :func:`_wrap_create`; pass :func:`_wrap_claude_create` to patch
+        Anthropic callables.
+    @return @c True if the attribute was (already) wrapped by the end
+        of the call, @c False if the attribute does not exist on
+        @p obj.
+    """
     if not hasattr(obj, attr_name):
         return False
 
@@ -295,13 +420,31 @@ def install(
     input_fn: Optional[Callable[[str], str]] = None,
     output=None,
 ) -> None:
-    """Install monkeypatches for OpenAI ChatCompletion calls.
+    """@brief Install monkey-patches for the OpenAI and Anthropic SDKs.
 
-    It intercepts `messages` and prepends prefix_text to the first system message,
-    or inserts a new system message if none exists.
+    The function intercepts the ``messages`` argument of the OpenAI
+    ``Completions.create`` (and ``AsyncCompletions.create``) callables
+    and the ``system`` argument of the Anthropic ``Messages.create``
+    (and ``AsyncMessages.create``) callables, prepending @p prefix_text
+    to the system prompt. When a modification happens, the change is
+    printed to @p output and, unless :attr:`require_confirm` is
+    @c False, the user is prompted for confirmation.
 
-    When a modification happens, it prints the before/after to terminal and asks
-    for confirmation (unless require_confirm=False).
+    The function is idempotent: calling it twice is a no-op as long as
+    :func:`uninstall` has not been called in between.
+
+    @param prefix_text Prefix to prepend. Defaults to
+        :data:`DEFAULT_PROMPT_PREFIX`. Ignored when @c None.
+    @param require_confirm When @c True (default), prompt the user on
+        @p output before applying the modification.
+    @param max_preview_chars Maximum number of characters of
+        @p prefix_text shown in the confirmation prompt.
+    @param input_fn Replacement for :func:`input` used to read the
+        y/N answer. Mainly intended for tests.
+    @param output Replacement for :data:`sys.stderr` used to display
+        the confirmation prompt. Mainly intended for tests.
+    @raise RuntimeError If @c openai is not importable or no patch
+        target is found in the installed SDK version.
     """
     global _INSTALLED
 
@@ -410,7 +553,13 @@ def install(
 
 
 def uninstall() -> None:
-    """Restore original OpenAI functions."""
+    """@brief Restore every attribute that :func:`install` patched.
+
+    Pops the contents of :data:`_ORIGINALS` in reverse order so that
+    re-installing the patches on the same objects still works. Errors
+    while restoring an individual attribute are swallowed so a single
+    broken target cannot prevent the rest from being restored.
+    """
     global _INSTALLED
     while _ORIGINALS:
         obj, attr_name, original = _ORIGINALS.pop()
