@@ -22,7 +22,8 @@ int main() {
         // opt.base_url = "https://api.openai.com/v1"; // default, uncomment and set your base URL if needed
 
         jie::client client(opt); // see docs for more configuration options
-
+        
+        // OpenAI Chat Completions API & Anthropic Claude Messages API
         jie::chat_completion_request req{};
         // req.model = "gpt-4o"; // set your model
         req.messages = {
@@ -50,6 +51,33 @@ int main() {
         } else {
             std::cout << resp_jiezhu.raw.dump(2) << std::endl;
         }
+
+        // OpenAI Responses API
+        jie::response_request rreq{};
+        rreq.model = req.model;
+        rreq.input_text = "Introduce yourself in one sentence.";
+        rreq.instructions = "You are a helpful assistant.";
+        rreq.temperature = 0.7;
+        rreq.max_output_tokens = 128;
+
+        auto rresp = client.responses_create(rreq);
+        const std::string rcontent = rresp.first_content();
+        std::cout << "\nResponse with `responses_create`:" << rresp.id << std::endl;
+        if (!rcontent.empty()) {
+            std::cout << rcontent << std::endl;
+        } else {
+            std::cout << rresp.raw.dump(2) << std::endl;
+        }
+
+        auto rresp_jiezhu = client.responses_jiezhu(rreq);
+        const std::string rcontent_jiezhu = rresp_jiezhu.first_content();
+        std::cout << "\nResponse with `responses_jiezhu`:" << rresp_jiezhu.id << std::endl;
+        if (!rcontent_jiezhu.empty()) {
+            std::cout << rcontent_jiezhu << std::endl;
+        } else {
+            std::cout << rresp_jiezhu.raw.dump(2) << std::endl;
+        }
+        
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
