@@ -294,11 +294,10 @@ FILE_PATTERNS          = *.c \
 
 RECURSIVE              = YES
 
-EXCLUDE                = ./jiezhu-cpp/third_party ./jiezhu-cpp/third_party \
-                        ./jiezhu-cpp/build \
-                        ./jiezhu-py/.venv \
+EXCLUDE                = ./jiezhu-py/.venv \
                         ./jiezhu-py/dist \
-                        ./jiezhu-py/.pytest_cache
+                        ./jiezhu-py/.pytest_cache \
+                        ./jiezhu-py/__pycache__
 
 EXCLUDE_SYMLINKS       = NO
 
