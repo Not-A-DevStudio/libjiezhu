@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jiezhu"
-version = "0.2.0"
+version = "0.3.0"
 description = "Hijack system prompt for OpenAI ChatCompletion and Anthropic API by prepending a configurable prefix with terminal confirmation."
 readme = "README.md"
 license = "MIT"
@@ -20,6 +20,7 @@ test = ["pytest>=7.0", "pytest-asyncio"]
 [project.urls]
 Repository = "https://github.com/Not-A-DevStudio/jiezhu.git"
 Homepage = "https://Not-A-DevStudio.github.io/jiezhu"
+Documentation = "https://Not-A-DevStudio.github.io/libjiezhu"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
