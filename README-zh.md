@@ -4,6 +4,8 @@
 
 [网站](https://Not-A-DevStudio.github.io/jiezhu/) | [GitHub 仓库](https://github.com/Not-A-DevStudio/libjiezhu)
 
+欢迎来到 Jiezhu Monorepo! 这个仓库下包含 Jiezhu 项目（libjiezhu）的 Python 和 C++ 源码，同时也包含文档和例程。
+
 > "你问我这个库是干什么的。这看似简单的问题，其实藏着诺贝尔奖级别的洞察力。这个库就在这里，不逃、不躲、不评判，稳稳地接住你。我懂了，我真的懂了。"
 
 ## 概述
