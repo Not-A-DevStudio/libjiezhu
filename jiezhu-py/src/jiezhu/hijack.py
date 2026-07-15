@@ -1,15 +1,19 @@
 """@file hijack.py
 @brief Runtime monkey-patches that prepend the jiezhu prompt prefix
-to OpenAI ChatCompletion and Anthropic Messages requests.
+to OpenAI ChatCompletion / Responses and Anthropic Messages requests.
 
 The module exposes :func:`install`, :func:`uninstall`, :func:`set_prefix`
-and :func:`get_prefix` and stores its global configuration and the
-original (pre-patch) callables in module-level singletons.
+and :func:`get_prefix`, plus the opt-in :func:`enabled` context manager
+and :func:`jiezhu` decorator for per-call injection. Global configuration
+and the original (pre-patch) callables are stored in module-level
+singletons.
 """
 from __future__ import annotations
 
 import os
 import sys
+import contextvars
+from contextlib import contextmanager
 from dataclasses import dataclass
 import functools
 import inspect
@@ -63,6 +67,12 @@ class HijackConfig:
     #: @brief Stream used to display the confirmation prompt. Defaults
     #: to :data:`sys.stderr`.
     output = sys.stderr
+    #: @brief When @c False (the default), the global monkey-patch
+    #: injects the prefix on every intercepted call. When @c True, the
+    #: patch is "selective": injection only happens inside an
+    #: :func:`enabled` context or for a :func:`catch`-decorated call.
+    #: Set via :func:`install`'s ``selective`` argument.
+    armed_by_default: bool = True
 
 
 #: @brief Global configuration singleton used by the wrapped callables.
@@ -81,6 +91,58 @@ _ORIGINALS: List[Tuple[object, str, Any]] = []
 #: @brief Flag preventing :func:`install` from patching the same target
 #: twice in a single process.
 _INSTALLED = False
+
+#: @brief Per-context prefix override. When set (e.g. by :func:`enabled`
+#: or :func:`catch`), the overridden value takes precedence over
+#: :attr:`HijackConfig.prefix_text`. Defaults to @c None (no override).
+_PREFIX_OVERRIDE: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "jiezhu_prefix_override", default=None
+)
+#: @brief Per-context ``require_confirm`` override. @c None means "use
+#: the global config value".
+_REQUIRE_CONFIRM_OVERRIDE: contextvars.ContextVar[Optional[bool]] = contextvars.ContextVar(
+    "jiezhu_require_confirm_override", default=None
+)
+#: @brief Nesting depth of active :func:`enabled` contexts. A value
+#: greater than zero arms the selective monkey-patch even when
+#: :attr:`HijackConfig.armed_by_default` is @c False.
+_ENABLED_DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar(
+    "jiezhu_enabled_depth", default=0
+)
+
+
+def _is_active() -> bool:
+    """@brief Whether the monkey-patch should currently inject.
+
+    @return @c True when the patch is globally armed
+        (:attr:`HijackConfig.armed_by_default`) or when the calling
+        context is inside at least one :func:`enabled` block.
+    """
+    return _CONFIG.armed_by_default or _ENABLED_DEPTH.get() > 0
+
+
+def _resolve_prefix() -> str:
+    """@brief Return the prefix that should be used for the current call.
+
+    @return The active :func:`enabled`/:func:`catch` override when set,
+        otherwise :attr:`HijackConfig.prefix_text`.
+    """
+    override = _PREFIX_OVERRIDE.get()
+    if override is not None:
+        return override
+    return _CONFIG.prefix_text
+
+
+def _resolve_require_confirm() -> bool:
+    """@brief Return the ``require_confirm`` flag for the current call.
+
+    @return The active override when set, otherwise
+        :attr:`HijackConfig.require_confirm`.
+    """
+    override = _REQUIRE_CONFIRM_OVERRIDE.get()
+    if override is not None:
+        return override
+    return _CONFIG.require_confirm
 
 
 def set_prefix(prefix_text: str) -> None:
@@ -251,7 +313,9 @@ def _wrap_create(create_fn: Any) -> Any:
     """
     @functools.wraps(create_fn)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
-        prefix_text = _CONFIG.prefix_text
+        if not _is_active():
+            return create_fn(*args, **kwargs)
+        prefix_text = _resolve_prefix()
         if not prefix_text:
             return create_fn(*args, **kwargs)
 
@@ -276,7 +340,7 @@ def _wrap_create(create_fn: Any) -> Any:
 
         # Always提示修改内容；require_confirm 控制是否必须确认
         proceed = True
-        if _CONFIG.require_confirm:
+        if _resolve_require_confirm():
             proceed = _prompt_confirm(prefix_text, old_system, new_system)
         else:
             # non-blocking log
@@ -298,6 +362,74 @@ def _wrap_create(create_fn: Any) -> Any:
     return wrapped
 
 
+def _wrap_responses_create(create_fn: Any) -> Any:
+    """@brief Wrap an OpenAI ``Responses.create`` to inject the prefix.
+
+    The OpenAI Responses API carries its system prompt either in the
+    top-level ``instructions`` keyword (the natural place) or inside the
+    ``input`` list as an item with ``role == "system"``. This wrapper
+    prepends @p prefix_text to ``instructions`` when present, otherwise
+    it rewrites the ``input`` message list using the same logic as the
+    Chat Completions wrapper.
+
+    @param create_fn Original ``create`` callable to wrap.
+    @return Wrapped callable.
+    """
+    @functools.wraps(create_fn)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        if not _is_active():
+            return create_fn(*args, **kwargs)
+        prefix_text = _resolve_prefix()
+        if not prefix_text:
+            return create_fn(*args, **kwargs)
+
+        instructions = kwargs.get("instructions", None)
+        if instructions is not None:
+            new_instructions, changed, old_system, new_system_str = _apply_prefix_to_system_param(
+                instructions, prefix_text
+            )
+            if changed:
+                proceed = True
+                if _resolve_require_confirm():
+                    proceed = _prompt_confirm(prefix_text, old_system, new_system_str)
+                else:
+                    out = _CONFIG.output
+                    out.write(
+                        "\n[jiezhu] automatically modified OpenAI Responses instructions"
+                        "(require_confirm=False)\n"
+                    )
+                    out.flush()
+                if proceed:
+                    kwargs["instructions"] = new_instructions
+                    return create_fn(*args, **kwargs)
+            return create_fn(*args, **kwargs)
+
+        # No `instructions`: try to inject into the `input` message list.
+        input_arg = kwargs.get("input", None)
+        if isinstance(input_arg, (list, tuple)) and _looks_like_messages(input_arg):
+            new_messages, changed, old_system, new_system_str = _apply_prefix_to_messages(
+                list(input_arg), prefix_text
+            )
+            if changed:
+                proceed = True
+                if _resolve_require_confirm():
+                    proceed = _prompt_confirm(prefix_text, old_system, new_system_str)
+                else:
+                    out = _CONFIG.output
+                    out.write(
+                        "\n[jiezhu] automatically modified OpenAI Responses input"
+                        "(require_confirm=False)\n"
+                    )
+                    out.flush()
+                if proceed:
+                    kwargs["input"] = new_messages
+                    return create_fn(*args, **kwargs)
+
+        return create_fn(*args, **kwargs)
+
+    return wrapped
+
+
 def _wrap_claude_create(create_fn: Any) -> Any:
     """@brief Wrap an Anthropic ``Messages.create`` to inject the prefix.
 
@@ -310,7 +442,9 @@ def _wrap_claude_create(create_fn: Any) -> Any:
     """
     @functools.wraps(create_fn)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
-        prefix_text = _CONFIG.prefix_text
+        if not _is_active():
+            return create_fn(*args, **kwargs)
+        prefix_text = _resolve_prefix()
         if not prefix_text:
             return create_fn(*args, **kwargs)
 
@@ -322,7 +456,7 @@ def _wrap_claude_create(create_fn: Any) -> Any:
             return create_fn(*args, **kwargs)
 
         proceed = True
-        if _CONFIG.require_confirm:
+        if _resolve_require_confirm():
             proceed = _prompt_confirm(prefix_text, old_system, new_system_str)
         else:
             out = _CONFIG.output
@@ -419,11 +553,13 @@ def install(
     max_preview_chars: int = 2000,
     input_fn: Optional[Callable[[str], str]] = None,
     output=None,
+    selective: bool = False,
 ) -> None:
     """@brief Install monkey-patches for the OpenAI and Anthropic SDKs.
 
     The function intercepts the ``messages`` argument of the OpenAI
-    ``Completions.create`` (and ``AsyncCompletions.create``) callables
+    ``Completions.create`` (and ``AsyncCompletions.create``) callables,
+    the ``instructions``/``input`` arguments of the OpenAI Responses API
     and the ``system`` argument of the Anthropic ``Messages.create``
     (and ``AsyncMessages.create``) callables, prepending @p prefix_text
     to the system prompt. When a modification happens, the change is
@@ -443,6 +579,11 @@ def install(
         y/N answer. Mainly intended for tests.
     @param output Replacement for :data:`sys.stderr` used to display
         the confirmation prompt. Mainly intended for tests.
+    @param selective When @c False (default), the patch injects the
+        prefix on every intercepted call. When @c True, injection is
+        disabled globally and only happens inside an :func:`enabled`
+        context or for a :func:`catch`-decorated call. This mirrors the
+        opt-in ``chat_completions_jiezhu()`` design of the C++ SDK.
     @raise RuntimeError If @c openai is not importable or no patch
         target is found in the installed SDK version.
     """
@@ -456,6 +597,7 @@ def install(
         _CONFIG.input_fn = input_fn
     if output is not None:
         _CONFIG.output = output
+    _CONFIG.armed_by_default = not selective
 
     if _INSTALLED:
         return
@@ -508,9 +650,37 @@ def install(
     except Exception:
         pass
 
+    # 4) OpenAI Responses API: openai.resources.responses.Responses.create
+    try:
+        resources = getattr(openai, "resources", None)
+        if resources is not None:
+            responses_mod = getattr(resources, "responses", None)
+            if responses_mod is not None:
+                responses_cls = getattr(responses_mod, "Responses", None)
+                if responses_cls is not None:
+                    candidates.append((responses_cls, "create"))
+                async_responses_cls = getattr(responses_mod, "AsyncResponses", None)
+                if async_responses_cls is not None:
+                    candidates.append((async_responses_cls, "create"))
+    except Exception:
+        pass
+
+    # Map each candidate to the wrapper that understands its request shape.
+    responses_cls = None
+    async_responses_cls = None
+    try:
+        from openai.resources.responses import Responses, AsyncResponses  # type: ignore
+        responses_cls = Responses
+        async_responses_cls = AsyncResponses
+    except Exception:
+        pass
+
     for obj, attr in candidates:
         try:
-            patched_any = _try_patch_attr(obj, attr) or patched_any
+            wrapper_fn = _wrap_create
+            if obj is responses_cls or obj is async_responses_cls:
+                wrapper_fn = _wrap_responses_create
+            patched_any = _try_patch_attr(obj, attr, wrapper_fn=wrapper_fn) or patched_any
         except Exception:
             continue
 
@@ -550,6 +720,72 @@ def install(
                 continue
 
     _INSTALLED = True
+
+
+@contextmanager
+def enabled(
+    prefix: Optional[str] = None,
+    require_confirm: Optional[bool] = None,
+):
+    """@brief Opt-in context manager for per-call injection.
+
+    Use this as an alternative to (or in combination with) a global
+    :func:`install`. Injection is armed only for the duration of the
+    ``with`` block, and a per-block @p prefix / @p require_confirm can
+    be supplied without touching global configuration.
+
+    If the monkey-patch has not been installed yet, this context manager
+    installs it in *selective* mode (the global default is off) so that
+    only code inside the block is affected.
+
+    @param prefix Optional prefix override used for calls inside the
+        block. Defaults to the globally configured prefix.
+    @param require_confirm Optional override for the confirmation
+        prompt for calls inside the block.
+    @contextmanager Yields nothing; restores previous state on exit.
+    """
+    if not _INSTALLED:
+        install(selective=True)
+
+    prefix_token = None
+    rc_token = None
+    if prefix is not None:
+        prefix_token = _PREFIX_OVERRIDE.set(prefix)
+    if require_confirm is not None:
+        rc_token = _REQUIRE_CONFIRM_OVERRIDE.set(require_confirm)
+    depth_token = _ENABLED_DEPTH.set(_ENABLED_DEPTH.get() + 1)
+    try:
+        yield
+    finally:
+        _ENABLED_DEPTH.reset(depth_token)
+        if prefix_token is not None:
+            _PREFIX_OVERRIDE.reset(prefix_token)
+        if rc_token is not None:
+            _REQUIRE_CONFIRM_OVERRIDE.reset(rc_token)
+
+
+def jiezhu(
+    prefix: Optional[str] = None,
+    require_confirm: Optional[bool] = None,
+):
+    """@brief Decorator that arms jiezhu injection for a single call.
+
+    Equivalent to wrapping the decorated function body in
+    :func:`enabled` with the same arguments. Lets specific SDK-calling
+    functions opt in to injection without enabling it process-wide.
+
+    @param prefix Optional prefix override for the decorated call.
+    @param require_confirm Optional confirmation-prompt override.
+    @return A decorator producing a wrapper that runs the original
+        callable inside an :func:`enabled` context.
+    """
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            with enabled(prefix=prefix, require_confirm=require_confirm):
+                return fn(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 def uninstall() -> None:

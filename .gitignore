@@ -19,3 +19,6 @@
 doxy/**/*
 !doxy/index.html
 !doxy/doxygen.css
+# ignore test outputs
+test/*
+Testing/*

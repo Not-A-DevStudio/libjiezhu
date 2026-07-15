@@ -19,7 +19,7 @@ class TestInstallUninstall:
 
     def test_install_patches_openai_create(self, fake_openai, capture_output):
         from jiezhu.hijack import install, _INSTALLED
-        from tests.conftest import FakeCompletions
+        from conftest import FakeCompletions
 
         original_create = FakeCompletions.create
         install(require_confirm=False, output=capture_output)
@@ -30,7 +30,7 @@ class TestInstallUninstall:
 
     def test_uninstall_restores_openai(self, fake_openai, capture_output):
         from jiezhu.hijack import install, uninstall
-        from tests.conftest import FakeCompletions
+        from conftest import FakeCompletions
 
         original_create = FakeCompletions.create
         install(require_confirm=False, output=capture_output)
@@ -55,7 +55,7 @@ class TestPrefixLogic:
 
     def test_prefix_prepended_to_system_message(self, fake_openai, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeCompletions
+        from conftest import FakeCompletions
 
         install(
             prefix_text="[PREFIX] ",
@@ -77,7 +77,7 @@ class TestPrefixLogic:
 
     def test_prefix_creates_system_message_when_missing(self, fake_openai, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeCompletions
+        from conftest import FakeCompletions
 
         install(
             prefix_text="[PREFIX]",
@@ -97,7 +97,7 @@ class TestPrefixLogic:
 
     def test_empty_prefix_passes_through(self, fake_openai, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeCompletions
+        from conftest import FakeCompletions
 
         install(
             prefix_text="",
@@ -118,7 +118,7 @@ class TestPrefixLogic:
 
     def test_original_messages_not_mutated(self, fake_openai, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeCompletions
+        from conftest import FakeCompletions
 
         install(
             prefix_text="[PREFIX] ",
@@ -142,7 +142,7 @@ class TestConfirmation:
 
     def test_require_confirm_true_user_accepts(self, fake_openai):
         from jiezhu.hijack import install
-        from tests.conftest import FakeCompletions
+        from conftest import FakeCompletions
 
         output = io.StringIO()
         install(
@@ -163,7 +163,7 @@ class TestConfirmation:
 
     def test_require_confirm_true_user_rejects(self, fake_openai):
         from jiezhu.hijack import install
-        from tests.conftest import FakeCompletions
+        from conftest import FakeCompletions
 
         output = io.StringIO()
         install(

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  cpp-tests:
+    name: C++ tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jiezhu-cpp
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libcurl4-openssl-dev
+      - name: Configure CMake
+        run: cmake -B build -DJIEZHU_BUILD_TEST=ON
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
+  python-tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jiezhu-py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Install package
+        run: pip install -e ".[test]"
+      - name: Run tests
+        run: pytest -v

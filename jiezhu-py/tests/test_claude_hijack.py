@@ -19,7 +19,7 @@ class TestClaudeInstallUninstall:
 
     def test_install_patches_claude_create(self, fake_both, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeMessages
+        from conftest import FakeMessages
 
         original_create = FakeMessages.create
         install(require_confirm=False, output=capture_output)
@@ -30,7 +30,7 @@ class TestClaudeInstallUninstall:
 
     def test_uninstall_restores_claude(self, fake_both, capture_output):
         from jiezhu.hijack import install, uninstall
-        from tests.conftest import FakeMessages
+        from conftest import FakeMessages
 
         original_create = FakeMessages.create
         install(require_confirm=False, output=capture_output)
@@ -61,7 +61,7 @@ class TestClaudePrefixLogic:
 
     def test_prefix_prepended_to_string_system(self, fake_both, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeMessages
+        from conftest import FakeMessages
 
         install(
             prefix_text="[PREFIX] ",
@@ -83,7 +83,7 @@ class TestClaudePrefixLogic:
 
     def test_prefix_prepended_to_content_block_system(self, fake_both, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeMessages
+        from conftest import FakeMessages
 
         install(
             prefix_text="[PREFIX] ",
@@ -108,7 +108,7 @@ class TestClaudePrefixLogic:
 
     def test_prefix_creates_system_when_missing(self, fake_both, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeMessages
+        from conftest import FakeMessages
 
         install(
             prefix_text="[PREFIX]",
@@ -128,7 +128,7 @@ class TestClaudePrefixLogic:
 
     def test_empty_prefix_passes_through_claude(self, fake_both, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeMessages
+        from conftest import FakeMessages
 
         install(
             prefix_text="",
@@ -149,7 +149,7 @@ class TestClaudePrefixLogic:
 
     def test_original_system_blocks_not_mutated(self, fake_both, capture_output):
         from jiezhu.hijack import install
-        from tests.conftest import FakeMessages
+        from conftest import FakeMessages
 
         install(
             prefix_text="[PREFIX] ",
@@ -176,7 +176,7 @@ class TestClaudeConfirmation:
 
     def test_require_confirm_user_accepts_claude(self, fake_both):
         from jiezhu.hijack import install
-        from tests.conftest import FakeMessages
+        from conftest import FakeMessages
 
         output = io.StringIO()
         install(
@@ -198,7 +198,7 @@ class TestClaudeConfirmation:
 
     def test_require_confirm_user_rejects_claude(self, fake_both):
         from jiezhu.hijack import install
-        from tests.conftest import FakeMessages
+        from conftest import FakeMessages
 
         output = io.StringIO()
         install(
