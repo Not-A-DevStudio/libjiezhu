@@ -73,6 +73,39 @@ class FakeAsyncCompletions:
         return {"args": args, "kwargs": kwargs, "source": "openai_async"}
 
 
+class FakeResponses:
+    """@brief Drop-in replacement for
+    ``openai.resources.responses.Responses`` used in tests.
+
+    The ``create`` method records the call arguments in a dict instead
+    of dispatching a real HTTP request.
+    """
+
+    @staticmethod
+    def create(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """@brief Record and echo the call arguments.
+
+        @return Dict containing the original ``args``/``kwargs`` and a
+            ``source`` tag identifying this fake SDK.
+        """
+        return {"args": args, "kwargs": kwargs, "source": "openai_responses"}
+
+
+class FakeAsyncResponses:
+    """@brief Async drop-in replacement for
+    ``openai.resources.responses.AsyncResponses`` used in tests.
+    """
+
+    @staticmethod
+    async def create(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """@brief Record and echo the call arguments asynchronously.
+
+        @return Dict containing the original ``args``/``kwargs`` and a
+            ``source`` tag identifying this fake SDK.
+        """
+        return {"args": args, "kwargs": kwargs, "source": "openai_responses_async"}
+
+
 @pytest.fixture()
 def fake_openai():
     """Register a fake ``openai`` package in *sys.modules* and return it.
@@ -84,15 +117,19 @@ def fake_openai():
     resources = _make_module("openai.resources", openai)
     chat = _make_module("openai.resources.chat", resources)
     completions_mod = _make_module("openai.resources.chat.completions", chat)
+    responses_mod = _make_module("openai.resources.responses", resources)
 
     completions_mod.Completions = FakeCompletions
     completions_mod.AsyncCompletions = FakeAsyncCompletions
+    responses_mod.Responses = FakeResponses
+    responses_mod.AsyncResponses = FakeAsyncResponses
 
     injected = [
         "openai",
         "openai.resources",
         "openai.resources.chat",
         "openai.resources.chat.completions",
+        "openai.resources.responses",
     ]
     for mod_name in injected:
         sys.modules[mod_name] = eval(mod_name.replace("openai", "openai", 1), {"openai": openai}) if mod_name == "openai" else None
@@ -102,6 +139,7 @@ def fake_openai():
     sys.modules["openai.resources"] = resources
     sys.modules["openai.resources.chat"] = chat
     sys.modules["openai.resources.chat.completions"] = completions_mod
+    sys.modules["openai.resources.responses"] = responses_mod
 
     yield openai
 

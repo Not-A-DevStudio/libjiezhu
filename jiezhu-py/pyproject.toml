@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jiezhu"
-version = "0.3.0"
+version = "0.3.1"
 description = "Hijack system prompt for OpenAI ChatCompletion and Anthropic API by prepending a configurable prefix with terminal confirmation."
 readme = "README.md"
 license = "MIT"
