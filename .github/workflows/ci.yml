@@ -38,6 +38,6 @@ jobs:
         with:
           python-version: "3.9"
       - name: Install package
-        run: pip install -e ".[all]"
+        run: pip install -e ".[test]"
       - name: Run tests
         run: pytest -v
