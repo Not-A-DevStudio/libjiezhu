@@ -102,6 +102,7 @@ if (JIEZHU_BUILD_TEST)
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_stream_curl.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_errors_curl.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_anthropic_curl.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_decisions_curl.cpp
         )
         target_include_directories(jiezhu-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
         target_link_libraries(jiezhu-tests PRIVATE jiezhu Catch2::Catch2WithMain)
