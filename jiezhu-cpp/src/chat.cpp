@@ -236,6 +236,78 @@ namespace jie {
         return std::string();
     }
 
+    /// @brief Serialize a Decisions API choice option.
+    /// @return JSON object containing @c value and an optional
+    /// @c description.
+    nlohmann::json decision_choice::to_json() const {
+        nlohmann::json j = nlohmann::json::object();
+        j["value"] = value;
+        if (!description.empty()) j["description"] = description;
+        return j;
+    }
+
+    /// @brief Serialize a Decisions API score level.
+    /// @return JSON object containing @c label and an optional
+    /// @c description.
+    nlohmann::json decision_level::to_json() const {
+        nlohmann::json j = nlohmann::json::object();
+        j["label"] = label;
+        if (!description.empty()) j["description"] = description;
+        return j;
+    }
+
+    /// @brief Serialize a Decisions API question.
+    /// @return JSON object containing @c type, optional @c name,
+    /// @c instructions and the type-specific @c choices / @c levels.
+    nlohmann::json decision_question::to_json() const {
+        nlohmann::json j = extra.is_object() ? extra : nlohmann::json::object();
+        j["type"] = type;
+        if (!name.empty()) j["name"] = name;
+        if (!instructions.empty()) j["instructions"] = instructions;
+        if (!choices.empty()) {
+            j["choices"] = nlohmann::json::array();
+            for (const auto &choice: choices) {
+                j["choices"].push_back(choice.to_json());
+            }
+        }
+        if (!levels.empty()) {
+            j["levels"] = nlohmann::json::array();
+            for (const auto &level: levels) {
+                j["levels"].push_back(level.to_json());
+            }
+        }
+        return j;
+    }
+
+    /// @brief Serialize a Decisions API input message.
+    /// @return JSON object containing @c role and @c content.
+    nlohmann::json decision_input_message::to_json() const {
+        nlohmann::json j = extra.is_object() ? extra : nlohmann::json::object();
+        j["role"] = role;
+        j["content"] = content;
+        return j;
+    }
+
+    /// @brief Serialize a Decisions API request.
+    /// @return JSON object containing @c model, @c input and @c questions.
+    nlohmann::json decision_request::to_json() const {
+        nlohmann::json j = extra.is_object() ? extra : nlohmann::json::object();
+        j["model"] = model;
+        if (!input_text.empty()) {
+            j["input"] = input_text;
+        } else if (!input_messages.empty()) {
+            j["input"] = nlohmann::json::array();
+            for (const auto &message: input_messages) {
+                j["input"].push_back(message.to_json());
+            }
+        }
+        j["questions"] = nlohmann::json::array();
+        for (const auto &question: questions) {
+            j["questions"].push_back(question.to_json());
+        }
+        return j;
+    }
+
     /**
      * @brief libcurl @c WRITEFUNCTION callback that appends the received
      * bytes to a caller-provided @c std::string.
@@ -684,6 +756,90 @@ namespace jie {
             if (resp.raw.contains("id") && resp.raw["id"].is_string()) resp.id = resp.raw["id"].get<std::string>();
             if (resp.raw.contains("model") && resp.raw["model"].is_string())
                 resp.model = resp.raw["model"].get<std::string>();
+            curl_slist_free_all(headers);
+            curl_easy_cleanup(curl);
+            return resp;
+        } catch (...) {
+            if (headers) curl_slist_free_all(headers);
+            curl_easy_cleanup(curl);
+            throw;
+        }
+    }
+
+    /**
+     * @brief Blocking OpenAI Decisions API call.
+     *
+     * POSTs the request to @c {base_url}/decisions and parses the JSON
+     * response into typed answers. Non-2xx responses are converted to a
+     * @c std::runtime_error carrying the status and body.
+     * @param request The request to send.
+     * @return Parsed response.
+     * @throw std::runtime_error On transport failure or non-2xx HTTP.
+     */
+    decision_response client::decisions_create(const decision_request &request) const {
+        ensure_curl_global();
+
+        CURL *curl = curl_easy_init();
+        if (!curl) throw std::runtime_error("curl_easy_init failed");
+
+        struct curl_slist *headers = NULL;
+        std::string response_body;
+        long http_code = 0;
+
+        try {
+            const std::string url = options_.base_url + "/decisions";
+            const std::string payload = request.to_json().dump();
+
+            set_common_headers(options_, &headers);
+            headers = curl_slist_append(headers, "Accept: application/json");
+
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(payload.size()));
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT, options_.timeout_seconds);
+
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+
+            CURLcode rc = curl_easy_perform(curl);
+            if (rc != CURLE_OK) {
+                std::string msg = std::string("curl_easy_perform failed: ") + curl_easy_strerror(rc);
+                throw std::runtime_error(msg);
+            }
+
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+            if (http_code < 200 || http_code >= 300) {
+                throw_http_error(http_code, response_body);
+            }
+
+            decision_response resp;
+            resp.raw = nlohmann::json::parse(response_body);
+            if (resp.raw.contains("model") && resp.raw["model"].is_string())
+                resp.model = resp.raw["model"].get<std::string>();
+
+            if (resp.raw.contains("answers") && resp.raw["answers"].is_array()) {
+                for (const auto &item: resp.raw["answers"]) {
+                    decision_answer answer;
+                    answer.raw = item;
+                    if (item.contains("type") && item["type"].is_string())
+                        answer.type = item["type"].get<std::string>();
+                    if (item.contains("name") && item["name"].is_string())
+                        answer.name = item["name"].get<std::string>();
+                    if (item.contains("probability") && item["probability"].is_number())
+                        answer.probability = item["probability"].get<double>();
+                    if (item.contains("choice")) answer.choice = item["choice"];
+                    if (item.contains("score") && item["score"].is_number())
+                        answer.score = item["score"].get<double>();
+                    if (item.contains("confidence") && item["confidence"].is_number())
+                        answer.confidence = item["confidence"].get<double>();
+                    if (item.contains("probabilities"))
+                        answer.probabilities = item["probabilities"];
+                    resp.answers.push_back(std::move(answer));
+                }
+            }
+
             curl_slist_free_all(headers);
             curl_easy_cleanup(curl);
             return resp;
