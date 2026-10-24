@@ -5,6 +5,9 @@ Exposes the functions used to install, remove and configure the
 system-prompt monkey-patches for the OpenAI (Chat + Responses) and
 (optionally) Anthropic SDKs, plus the opt-in :func:`enabled` context
 manager and :func:`jiezhu` decorator for per-call injection.
+
+The OpenAI Decisions API is intentionally not patched: it returns typed
+answers rather than generated text.
 """
 from .hijack import (
     install,

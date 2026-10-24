@@ -2,6 +2,11 @@
 @brief Runtime monkey-patches that prepend the jiezhu prompt prefix
 to OpenAI ChatCompletion / Responses and Anthropic Messages requests.
 
+The OpenAI Decisions API is intentionally not patched: it returns typed
+probabilities and scores instead of generated text, so injecting a
+system prompt would not be meaningful. Calls to ``client.decisions``
+therefore pass through unchanged.
+
 The module exposes :func:`install`, :func:`uninstall`, :func:`set_prefix`
 and :func:`get_prefix`, plus the opt-in :func:`enabled` context manager
 and :func:`jiezhu` decorator for per-call injection. Global configuration
@@ -562,9 +567,11 @@ def install(
     the ``instructions``/``input`` arguments of the OpenAI Responses API
     and the ``system`` argument of the Anthropic ``Messages.create``
     (and ``AsyncMessages.create``) callables, prepending @p prefix_text
-    to the system prompt. When a modification happens, the change is
-    printed to @p output and, unless :attr:`require_confirm` is
-    @c False, the user is prompted for confirmation.
+    to the system prompt. The OpenAI Decisions API is intentionally left
+    untouched because it returns typed answers rather than generated
+    text. When a modification happens, the change is printed to @p
+    output and, unless :attr:`require_confirm` is @c False, the user is
+    prompted for confirmation.
 
     The function is idempotent: calling it twice is a no-op as long as
     :func:`uninstall` has not been called in between.
