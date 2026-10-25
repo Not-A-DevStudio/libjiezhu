@@ -37,7 +37,7 @@ include(GNUInstallDirs)
 option(JIEZHU_BUILD_STATIC "Set ON to build Jiezhu " OFF)
 option(JIEZHU_INSTALL "Install jiezhu CMake package" ON)
 option(JIEZHU_ENABLE_JIEZHU_ABILITY "Enable full Jiezhu ability in the library" OFF)
-option(JIEZHU_BUILD_TEST "build Jiezhu test" OFF)
+option(JIEZHU_BUILD_TEST "build Jiezhu test" ON)
 # =========  end Jiezhu build options  =========
 
 file(GLOB_RECURSE SOURCES
@@ -110,7 +110,7 @@ if (JIEZHU_BUILD_TEST)
             target_link_libraries(jiezhu-tests PRIVATE ws2_32)
         endif ()
 
-        list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Catch2-3.12.0/extras")
+        list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Catch2/extras")
         include(Catch)
         catch_discover_tests(jiezhu-tests)
     endif ()
