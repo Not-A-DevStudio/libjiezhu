@@ -15,12 +15,21 @@ jobs:
         working-directory: jiezhu-cpp
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ libcurl4-openssl-dev
+          sudo apt-get install -y cmake g++ libssl-dev
       - name: Configure CMake
-        run: cmake -B build -DJIEZHU_BUILD_TEST=ON
+        run: |
+          cmake -B build \
+            -DJIEZHU_BUILD_TEST=ON \
+            -DCURL_USE_LIBPSL=OFF \
+            -DBUILD_CURL_EXE=OFF \
+            -DBUILD_LIBCURL_DOCS=OFF \
+            -DBUILD_MISC_DOCS=OFF \
+            -DENABLE_CURL_MANUAL=OFF
       - name: Build
         run: cmake --build build --parallel
       - name: Run tests
