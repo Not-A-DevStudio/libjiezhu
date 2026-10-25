@@ -62,6 +62,11 @@ endif ()
 add_library(jiezhu::jie ALIAS ${JIEZHU_LIB_NAME})
 add_library(jiezhu::jiezhu ALIAS ${JIEZHU_LIB_NAME})
 
+# Without an import library, consumers cannot link against the Windows DLL.
+if (WIN32 AND NOT JIEZHU_BUILD_STATIC)
+    set_target_properties(${JIEZHU_LIB_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 # Ensure bundled dependencies participate in install/export when packaging.
 # Otherwise, exporting jiezhu would fail because it links to non-exported targets.
 if (JIEZHU_INSTALL)
