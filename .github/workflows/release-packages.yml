@@ -173,6 +173,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set release metadata
         id: metadata
@@ -194,9 +196,26 @@ jobs:
           echo "release_name=${TAG}-packages" >> "$GITHUB_OUTPUT"
 
       - name: Create source code archives
+        shell: bash
         run: |
-          zip -r jiezhu-cpp.zip jiezhu-cpp
-          zip -r jiezhu-py.zip jiezhu-py
+          set -euo pipefail
+
+          mkdir -p source/jiezhu-cpp source/jiezhu-py
+
+          # git archive packs only tracked files, so ignored and generated
+          # files are excluded automatically.
+          git archive --format=tar HEAD:jiezhu-cpp | tar -x -C source/jiezhu-cpp
+          git archive --format=tar HEAD:jiezhu-py | tar -x -C source/jiezhu-py
+
+          # Bundle the pinned submodule sources into the C++ archive.
+          git submodule foreach --recursive '
+            set -e
+            mkdir -p "$toplevel/source/$displaypath"
+            git archive --format=tar HEAD | tar -x -C "$toplevel/source/$displaypath"
+          '
+
+          (cd source && zip -r ../jiezhu-cpp.zip jiezhu-cpp)
+          (cd source && zip -r ../jiezhu-py.zip jiezhu-py)
 
       - name: Download compiled binary packages
         uses: actions/download-artifact@v4
