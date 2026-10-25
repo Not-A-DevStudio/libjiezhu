@@ -70,6 +70,7 @@ jobs:
           cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci \
             -DCMAKE_BUILD_TYPE=Release \
             -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} \
+            -DJIEZHU_BUILD_TEST=OFF \
             -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }} \
             -DCURL_USE_LIBPSL=OFF \
             -DBUILD_CURL_EXE=OFF \
@@ -88,6 +89,7 @@ jobs:
         run: |
           cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci `
             -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} `
+            -DJIEZHU_BUILD_TEST=OFF `
             -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }} `
             -DCURL_USE_LIBPSL=OFF `
             -DBUILD_CURL_EXE=OFF `
