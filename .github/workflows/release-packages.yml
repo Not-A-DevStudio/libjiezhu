@@ -53,6 +53,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Apply curl Schannel patch
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: pwsh
+        run: git -C jiezhu-cpp/third_party/curl apply --ignore-whitespace ../../patches/curl-schannel-on-windows.patch
 
       - name: Configure and build on Linux (gcc)
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -63,7 +70,12 @@ jobs:
           cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci \
             -DCMAKE_BUILD_TYPE=Release \
             -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} \
-            -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }}
+            -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }} \
+            -DCURL_USE_LIBPSL=OFF \
+            -DBUILD_CURL_EXE=OFF \
+            -DBUILD_LIBCURL_DOCS=OFF \
+            -DBUILD_MISC_DOCS=OFF \
+            -DENABLE_CURL_MANUAL=OFF
           cmake --build jiezhu-cpp/build-ci --config Release
 
       - name: Add MSBuild to PATH
@@ -74,8 +86,24 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
         run: |
-          cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }}
+          cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci `
+            -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} `
+            -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }} `
+            -DCURL_USE_LIBPSL=OFF `
+            -DBUILD_CURL_EXE=OFF `
+            -DBUILD_LIBCURL_DOCS=OFF `
+            -DBUILD_MISC_DOCS=OFF `
+            -DENABLE_CURL_MANUAL=OFF
           cmake --build jiezhu-cpp/build-ci --config Release
+
+      - name: Verify Schannel backend
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: pwsh
+        run: |
+          $config = "jiezhu-cpp/build-ci/third_party/curl/lib/curl_config.h"
+          if (-not (Select-String -Path $config -Pattern '^#define USE_SCHANNEL 1' -Quiet)) {
+            throw "Schannel backend was not enabled"
+          }
 
       - name: Package Linux binaries
         if: ${{ matrix.os == 'ubuntu-latest' }}
