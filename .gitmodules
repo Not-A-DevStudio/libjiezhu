@@ -1,12 +1,9 @@
 [submodule "jiezhu-cpp/third_party/Catch2"]
 	path = jiezhu-cpp/third_party/Catch2
 	url = https://github.com/catchorg/Catch2.git
-	branch = devel
 [submodule "jiezhu-cpp/third_party/curl"]
 	path = jiezhu-cpp/third_party/curl
 	url = https://github.com/curl/curl.git
-	branch = master
 [submodule "jiezhu-cpp/third_party/nlohmann_json"]
 	path = jiezhu-cpp/third_party/nlohmann_json
 	url = https://github.com/nlohmann/json.git
-	branch = develop
