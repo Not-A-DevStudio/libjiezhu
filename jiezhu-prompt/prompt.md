@@ -83,3 +83,11 @@ Jiezhu provides three different prompt prefixes that suit different ai base mode
 - "一句话总结:<总结，要求简洁>，<正常回复>。"
 - "不废话"
 ```
+
+## DECISION_GATE_PROMPT
+
+Used by the experimental Decisions API gate in `jiezhu-cpp` to decide whether the latest user message actually needs emotional support. It is sent as the `instructions` field of the `needs_emotional_support` predicate question. The gate injects the jiezhu prefix only when the predicate probability reaches the configured threshold.
+
+```text
+Determine whether the user's latest message is seeking emotional support, comfort, empathy, or companionship. Return true if the user is expressing negative emotions, venting about a problem, seeking understanding, or asking to be treated gently. Return false if the user is only asking for facts, troubleshooting a technical issue, giving a task instruction, or making ordinary small talk.
+```

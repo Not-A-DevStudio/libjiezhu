@@ -909,9 +909,12 @@ namespace jie {
         question.type = "predicate";
         question.name = "needs_emotional_support";
         question.instructions =
-            "判断用户的最新消息是否在寻求情感支持、安慰、共情或陪伴。"
-            "如果用户在表达负面情绪、倾诉烦恼、寻求理解或被温柔回应，返回 true；"
-            "如果用户只是在询问事实、排查技术问题、下达任务指令或进行普通闲聊，返回 false。";
+            "Determine whether the user's latest message is seeking emotional "
+            "support, comfort, empathy, or companionship. Return true if the user "
+            "is expressing negative emotions, venting about a problem, seeking "
+            "understanding, or asking to be treated gently. Return false if the "
+            "user is only asking for facts, troubleshooting a technical issue, "
+            "giving a task instruction, or making ordinary small talk.";
         request.questions.push_back(question);
 
         try {

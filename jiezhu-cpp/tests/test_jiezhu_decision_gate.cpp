@@ -90,6 +90,13 @@ TEST_CASE("decision gate injects jiezhu when support is needed") {
 		REQUIRE(json["input"] == "I feel lonely and exhausted.");
 		REQUIRE(json["questions"][0]["type"] == "predicate");
 		REQUIRE(json["questions"][0]["name"] == "needs_emotional_support");
+		REQUIRE(json["questions"][0]["instructions"] ==
+			"Determine whether the user's latest message is seeking emotional "
+			"support, comfort, empathy, or companionship. Return true if the user "
+			"is expressing negative emotions, venting about a problem, seeking "
+			"understanding, or asking to be treated gently. Return false if the "
+			"user is only asking for facts, troubleshooting a technical issue, "
+			"giving a task instruction, or making ordinary small talk.");
 	}
 
 	const std::string chat_request = server.last_request();
