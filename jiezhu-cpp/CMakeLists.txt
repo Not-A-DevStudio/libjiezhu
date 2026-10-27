@@ -93,6 +93,13 @@ target_include_directories(${JIEZHU_LIB_NAME}
 )
 target_link_libraries(${JIEZHU_LIB_NAME} PUBLIC ${_JIEZHU_CURL_TARGET} nlohmann_json::nlohmann_json)
 
+# The public headers contain UTF-8 Chinese prompt assets. Without /utf-8,
+# MSVC interprets them using the system code page and embeds invalid UTF-8
+# bytes, which makes nlohmann::json reject the prompt prefix.
+if (MSVC)
+    target_compile_options(${JIEZHU_LIB_NAME} PUBLIC /utf-8)
+endif ()
+
 if (JIEZHU_ENABLE_JIEZHU_ABILITY)
     target_compile_definitions(${JIEZHU_LIB_NAME} PUBLIC JIE_ENABLE_JIEZHU_ABLITY)
     message("JIEZHU: Enable full Jiezhu ability")
