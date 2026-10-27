@@ -181,6 +181,175 @@ namespace jie {
         bool done = false;
     };
 
+    /// @brief One option for a Decisions API @c choice question.
+    struct decision_choice {
+        /// @brief Option value. The API accepts a string or a boolean.
+        nlohmann::json value = "";
+        /// @brief Optional human-readable explanation of when this
+        /// option applies.
+        std::string description;
+
+        /// @brief Default-construct an empty choice.
+        decision_choice() {
+        }
+
+        /// @brief Construct a string-valued choice.
+        /// @param v Option value.
+        /// @param d Optional description.
+        decision_choice(const std::string &v, const std::string &d = "") : value(v), description(d) {
+        }
+
+        /// @brief Construct a boolean-valued choice.
+        /// @param v Option value.
+        /// @param d Optional description.
+        decision_choice(bool v, const std::string &d = "") : value(v), description(d) {
+        }
+
+        /// @brief Serialize this choice into the Decisions API shape.
+        [[nodiscard]] nlohmann::json to_json() const;
+    };
+
+    /// @brief One ordered level for a Decisions API @c score question.
+    struct decision_level {
+        /// @brief Level label (required).
+        std::string label;
+        /// @brief Optional explanation of the level's criteria.
+        std::string description;
+
+        /// @brief Default-construct an empty level.
+        decision_level() {
+        }
+
+        /// @brief Construct a level with a label and description.
+        /// @param l Level label.
+        /// @param d Optional level description.
+        decision_level(const std::string &l, const std::string &d = "") : label(l), description(d) {
+        }
+
+        /// @brief Serialize this level into the Decisions API shape.
+        [[nodiscard]] nlohmann::json to_json() const;
+    };
+
+    /// @brief A single question in a Decisions API request.
+    ///
+    /// @c type selects the question kind: @c "predicate", @c "choice" or
+    /// @c "score". Choice questions use @c choices; score questions use
+    /// @c levels. Unused fields are omitted from the serialized payload.
+    struct decision_question {
+        /// @brief Question kind: @c "predicate", @c "choice" or @c "score".
+        std::string type;
+        /// @brief Optional unique name echoed back in the answer.
+        std::string name;
+        /// @brief Natural-language instructions for the model.
+        std::string instructions;
+        /// @brief Options for a @c choice question.
+        std::vector<decision_choice> choices;
+        /// @brief Ordered levels for a @c score question.
+        std::vector<decision_level> levels;
+        /// @brief Forward-compat bucket for additional question fields.
+        nlohmann::json extra = nlohmann::json::object();
+
+        /// @brief Serialize this question into the Decisions API shape.
+        [[nodiscard]] nlohmann::json to_json() const;
+    };
+
+    /// @brief One message in the Decisions API @c input array.
+    ///
+    /// @c content is either a plain string or an array of content parts
+    /// such as @c {"type":"input_text","text":"..."} and
+    /// @c {"type":"input_image","image_url":"..."}. The flexible JSON
+    /// representation allows text and image inputs without a dedicated
+    /// part type.
+    struct decision_input_message {
+        /// @brief Speaker role (typically @c "user", @c "developer" or
+        /// @c "assistant").
+        std::string role;
+        /// @brief Text string or array of content parts.
+        nlohmann::json content = "";
+        /// @brief Forward-compat bucket for additional message fields.
+        nlohmann::json extra = nlohmann::json::object();
+
+        /// @brief Default-construct an empty message.
+        decision_input_message() {
+        }
+
+        /// @brief Construct a message with string content.
+        /// @param r Speaker role.
+        /// @param c Message text.
+        decision_input_message(const std::string &r, const std::string &c) : role(r), content(c) {
+        }
+
+        /// @brief Construct a message with structured content parts.
+        /// @param r Speaker role.
+        /// @param c Content string or array of parts.
+        decision_input_message(const std::string &r, const nlohmann::json &c) : role(r), content(c) {
+        }
+
+        /// @brief Serialize this message into the Decisions API shape.
+        [[nodiscard]] nlohmann::json to_json() const;
+    };
+
+    /// @brief Request payload for an OpenAI Decisions API call.
+    ///
+    /// Mirrors the Decisions request shape: a model name, shared input
+    /// evidence (plain text or structured messages) and one or more
+    /// questions.
+    struct decision_request {
+        /// @brief Model identifier. The API currently requires
+        /// @c "gpt-6-luna".
+        std::string model;
+        /// @brief Plain-text input. When non-empty, used as the @c input
+        /// string. Takes precedence over @c input_messages.
+        std::string input_text;
+        /// @brief Structured input messages. Used when @c input_text is
+        /// empty.
+        std::vector<decision_input_message> input_messages;
+        /// @brief Questions to evaluate against the shared input.
+        std::vector<decision_question> questions;
+        /// @brief Forward-compat bucket for additional API fields.
+        nlohmann::json extra = nlohmann::json::object();
+
+        /// @brief Serialize this request to the JSON shape expected by the
+        /// OpenAI Decisions endpoint.
+        [[nodiscard]] nlohmann::json to_json() const;
+    };
+
+    /// @brief One typed answer returned by a Decisions API call.
+    ///
+    /// The @c type field determines which of the convenience fields is
+    /// populated: @c probability for @c "predicate" answers, @c choice
+    /// for @c "choice" answers and @c score for @c "score" answers.
+    /// @c raw always contains the complete answer object.
+    struct decision_answer {
+        /// @brief Raw answer object as returned by the server.
+        nlohmann::json raw;
+        /// @brief Answer kind: @c "predicate", @c "choice", @c "score"
+        /// or @c "refusal".
+        std::string type;
+        /// @brief Question name echoed back by the server (may be empty).
+        std::string name;
+        /// @brief Probability for a @c "predicate" answer.
+        std::optional<double> probability;
+        /// @brief Selected value for a @c "choice" answer (string or bool).
+        nlohmann::json choice = nullptr;
+        /// @brief Probability-weighted score for a @c "score" answer.
+        std::optional<double> score;
+        /// @brief Confidence reported for @c "choice" / @c "score" answers.
+        std::optional<double> confidence;
+        /// @brief Raw probability distribution for choice/score answers.
+        nlohmann::json probabilities = nlohmann::json::array();
+    };
+
+    /// @brief Response payload returned by a Decisions API call.
+    struct decision_response {
+        /// @brief Raw JSON body returned by the server.
+        nlohmann::json raw;
+        /// @brief Best-effort extraction of the @c model field.
+        std::string model;
+        /// @brief Parsed answers, in the same order as the questions.
+        std::vector<decision_answer> answers;
+    };
+
     /// @brief Configuration for a @ref jie::client instance.
     ///
     /// Holds the credentials and connection settings used to talk to a
@@ -199,6 +368,20 @@ namespace jie {
         /// @brief Optional OpenAI project header value.
         std::string project;
 
+        /// @brief Experimental: gate jiezhu injection on the Decisions API.
+        ///
+        /// When @c true, the jiezhu variants ask the Decisions API
+        /// whether the latest user message needs emotional support and,
+        /// when the predicate probability is below
+        /// @ref decision_threshold, send the request without the
+        /// jiezhu prompt prefix. Requests without user text and
+        /// Decisions API failures fail open (the prefix is injected).
+        bool experimental_decision_gate = false;
+        /// @brief Model used by the experimental Decisions API gate.
+        std::string decision_model = "gpt-6-luna";
+        /// @brief Predicate probability threshold for the gate, in
+        /// the inclusive range @c [0.0, 1.0].
+        double decision_threshold = 0.5;
     };
 
     /// @brief Thin HTTP client for OpenAI / Anthropic chat-completion APIs.
@@ -377,7 +560,42 @@ namespace jie {
             const std::string &prompt_prefix,
             const std::function<bool(const response_stream_event &)> &on_event) const;
 
+        /// @brief Issue a blocking OpenAI Decisions API request.
+        ///
+        /// POSTs the request to @c {base_url}/decisions. This is a pure
+        /// API call: the jiezhu prompt prefix is intentionally not
+        /// injected because the Decisions API returns typed answers
+        /// rather than generated text.
+        /// @param request The request payload.
+        /// @return Parsed response with typed answers.
+        /// @throw std::runtime_error On transport failure or non-2xx HTTP.
+        [[nodiscard]] decision_response decisions_create(const decision_request &request) const;
+
     private:
+        /// @brief Return the latest non-empty user message text.
+        /// @param request Chat-completion request to inspect.
+        /// @return User text, or an empty string when unavailable.
+        [[nodiscard]] static std::string latest_user_text(
+            const chat_completion_request &request);
+
+        /// @brief Return the latest non-empty user text from a Responses
+        /// request.
+        /// @param request Responses request to inspect.
+        /// @return User text, or an empty string when unavailable.
+        [[nodiscard]] static std::string latest_user_text(
+            const response_request &request);
+
+        /// @brief Ask the Decisions API whether @p user_text needs
+        /// emotional support.
+        ///
+        /// Returns @c true when the experimental gate is disabled, when
+        /// @p user_text is empty, or when the Decisions API cannot be
+        /// reached, so the gate never blocks normal jiezhu behaviour.
+        /// @param user_text Latest user message text.
+        /// @return @c true to inject the jiezhu prefix, @c false to
+        /// skip injection for this call.
+        [[nodiscard]] bool user_needs_jiezhu(const std::string &user_text) const;
+
         /// @brief Configuration for this client.
         client_options options_;
     };

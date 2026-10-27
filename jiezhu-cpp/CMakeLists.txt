@@ -37,7 +37,7 @@ include(GNUInstallDirs)
 option(JIEZHU_BUILD_STATIC "Set ON to build Jiezhu " OFF)
 option(JIEZHU_INSTALL "Install jiezhu CMake package" ON)
 option(JIEZHU_ENABLE_JIEZHU_ABILITY "Enable full Jiezhu ability in the library" OFF)
-option(JIEZHU_BUILD_TEST "build Jiezhu test" OFF)
+option(JIEZHU_BUILD_TEST "build Jiezhu test" ON)
 # =========  end Jiezhu build options  =========
 
 file(GLOB_RECURSE SOURCES
@@ -61,6 +61,11 @@ endif ()
 # Export friendly alias targets for consumers
 add_library(jiezhu::jie ALIAS ${JIEZHU_LIB_NAME})
 add_library(jiezhu::jiezhu ALIAS ${JIEZHU_LIB_NAME})
+
+# Without an import library, consumers cannot link against the Windows DLL.
+if (WIN32 AND NOT JIEZHU_BUILD_STATIC)
+    set_target_properties(${JIEZHU_LIB_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
 
 # Ensure bundled dependencies participate in install/export when packaging.
 # Otherwise, exporting jiezhu would fail because it links to non-exported targets.
@@ -88,6 +93,13 @@ target_include_directories(${JIEZHU_LIB_NAME}
 )
 target_link_libraries(${JIEZHU_LIB_NAME} PUBLIC ${_JIEZHU_CURL_TARGET} nlohmann_json::nlohmann_json)
 
+# The public headers contain UTF-8 Chinese prompt assets. Without /utf-8,
+# MSVC interprets them using the system code page and embeds invalid UTF-8
+# bytes, which makes nlohmann::json reject the prompt prefix.
+if (MSVC)
+    target_compile_options(${JIEZHU_LIB_NAME} PUBLIC /utf-8)
+endif ()
+
 if (JIEZHU_ENABLE_JIEZHU_ABILITY)
     target_compile_definitions(${JIEZHU_LIB_NAME} PUBLIC JIE_ENABLE_JIEZHU_ABLITY)
     message("JIEZHU: Enable full Jiezhu ability")
@@ -97,19 +109,26 @@ if (JIEZHU_BUILD_TEST)
     message("JIEZHU: Build tests")
     include(CTest)
     if (BUILD_TESTING)
-        add_executable(jiezhu-tests
+        set(_JIEZHU_TEST_SOURCES
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_create_curl.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_stream_curl.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_errors_curl.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_anthropic_curl.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_decisions_curl.cpp
         )
+        if (JIEZHU_ENABLE_JIEZHU_ABILITY)
+            list(APPEND _JIEZHU_TEST_SOURCES
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_jiezhu_decision_gate.cpp
+            )
+        endif ()
+        add_executable(jiezhu-tests ${_JIEZHU_TEST_SOURCES})
         target_include_directories(jiezhu-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
-        target_link_libraries(jiezhu-tests PRIVATE jiezhu Catch2::Catch2WithMain)
+        target_link_libraries(jiezhu-tests PRIVATE ${JIEZHU_LIB_NAME} Catch2::Catch2WithMain)
         if (WIN32)
             target_link_libraries(jiezhu-tests PRIVATE ws2_32)
         endif ()
 
-        list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Catch2-3.12.0/extras")
+        list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Catch2/extras")
         include(Catch)
         catch_discover_tests(jiezhu-tests)
     endif ()

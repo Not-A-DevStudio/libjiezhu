@@ -2,11 +2,20 @@
 @brief Runtime monkey-patches that prepend the jiezhu prompt prefix
 to OpenAI ChatCompletion / Responses and Anthropic Messages requests.
 
-The module exposes :func:`install`, :func:`uninstall`, :func:`set_prefix`
-and :func:`get_prefix`, plus the opt-in :func:`enabled` context manager
-and :func:`jiezhu` decorator for per-call injection. Global configuration
-and the original (pre-patch) callables are stored in module-level
-singletons.
+The OpenAI Decisions API is intentionally not patched: it returns typed
+probabilities and scores instead of generated text, so injecting a
+system prompt would not be meaningful. Calls to ``client.decisions``
+therefore pass through unchanged. The API can, however, be used *by*
+the experimental decision gate: when
+:func:`set_experimental_decision_gate` is enabled, jiezhu asks the
+Decisions API whether the latest user message actually needs emotional
+support and skips prompt injection when it does not.
+
+The module exposes :func:`install`, :func:`uninstall`, :func:`set_prefix`,
+:func:`get_prefix` and :func:`set_experimental_decision_gate`, plus the
+opt-in :func:`enabled` context manager and :func:`jiezhu` decorator for
+per-call injection. Global configuration and the original (pre-patch)
+callables are stored in module-level singletons.
 """
 from __future__ import annotations
 
@@ -18,6 +27,18 @@ from dataclasses import dataclass
 import functools
 import inspect
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
+
+#: @brief Name of the Decisions API predicate used by the experimental
+#: jiezhu gate.
+DECISION_GATE_QUESTION_NAME = "needs_emotional_support"
+
+#: @brief Instructions sent to the Decisions API for the experimental
+#: jiezhu gate. Kept in Chinese to match the project's prompt assets.
+DECISION_GATE_QUESTION_INSTRUCTIONS = (
+    "判断用户的最新消息是否在寻求情感支持、安慰、共情或陪伴。"
+    "如果用户在表达负面情绪、倾诉烦恼、寻求理解或被温柔回应，返回 true；"
+    "如果用户只是在询问事实、排查技术问题、下达任务指令或进行普通闲聊，返回 false。"
+)
 
 #: @brief Default empathetic "jiezhu" system prompt prefix (Chinese).
 #:
@@ -73,6 +94,26 @@ class HijackConfig:
     #: :func:`enabled` context or for a :func:`catch`-decorated call.
     #: Set via :func:`install`'s ``selective`` argument.
     armed_by_default: bool = True
+    #: @brief Experimental: consult the Decisions API before injecting.
+    #:
+    #: When enabled, the latest user message is sent to
+    #: ``client.decisions`` with a predicate question asking whether the
+    #: user needs emotional support. If the predicate probability is
+    #: below :attr:`decision_threshold`, prompt injection is skipped for
+    #: that call. Errors and requests without user text fail open (the
+    #: prefix is still injected) so a broken gate never breaks chat.
+    experimental_decision_gate: bool = False
+    #: @brief Model used for the experimental Decisions API gate.
+    decision_model: str = "gpt-6-luna"
+    #: @brief Predicate probability at or above which jiezhu is applied.
+    decision_threshold: float = 0.5
+    #: @brief Optional callable used instead of the Decisions API.
+    #:
+    #: Receives the latest user message text and returns whether the
+    #: user needs emotional support. Primarily intended for custom
+    #: backends and tests. May be a coroutine function for async SDK
+    #: paths. When @c None, the OpenAI Decisions API is used.
+    decision_fn: Optional[Callable[[str], Any]] = None
 
 
 #: @brief Global configuration singleton used by the wrapped callables.
@@ -143,6 +184,317 @@ def _resolve_require_confirm() -> bool:
     if override is not None:
         return override
     return _CONFIG.require_confirm
+
+
+def _log_gate(message: str) -> None:
+    """@brief Emit a one-line experimental-gate diagnostic.
+
+    Uses the same stream as the confirmation prompt so applications
+    that already redirect jiezhu output capture these messages too.
+
+    @param message Human-readable message without the ``[jiezhu]``
+        prefix.
+    """
+    out = _CONFIG.output
+    if out is None:
+        return
+    try:
+        out.write(f"\n[jiezhu] decision gate: {message}\n")
+        out.flush()
+    except Exception:
+        pass
+
+
+def _read_field(obj: Any, name: str, default: Any = None) -> Any:
+    """@brief Read @p name from a dict or SDK model object.
+
+    @param obj Dict, pydantic model or any attribute-bearing object.
+    @param name Field name.
+    @param default Value returned when the field is missing.
+    @return The field value or @p default.
+    """
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+def _extract_content_text(content: Any) -> str:
+    """@brief Flatten OpenAI/Anthropic message content into plain text.
+
+    Handles plain strings, lists of strings and content-part lists such
+    as ``[{"type": "text", "text": "..."}]``. Non-text parts (for
+    example images) are ignored.
+
+    @param content Message content value.
+    @return Concatenated text, or an empty string when unavailable.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, (list, tuple)):
+        parts: List[str] = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict):
+                text = part.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+                else:
+                    nested = part.get("content")
+                    if isinstance(nested, str):
+                        parts.append(nested)
+            else:
+                text = getattr(part, "text", None)
+                if isinstance(text, str):
+                    parts.append(text)
+        return "\n".join(parts)
+    return ""
+
+
+def _latest_user_text(messages: Any) -> Optional[str]:
+    """@brief Return the text of the most recent user message.
+
+    @param messages OpenAI/Anthropic-style message list.
+    @return The latest non-empty user text, or @c None when the list has
+        no user message with textual content.
+    """
+    if not isinstance(messages, (list, tuple)):
+        return None
+    for message in reversed(messages):
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+        text = _extract_content_text(message.get("content"))
+        if text.strip():
+            return text
+    return None
+
+
+def _responses_user_text(input_arg: Any) -> Optional[str]:
+    """@brief Extract the latest user text from a Responses ``input``.
+
+    @param input_arg The ``input`` keyword of ``Responses.create``. It
+        may be a plain string or a message list.
+    @return Latest user text, or @c None when it cannot be determined.
+    """
+    if isinstance(input_arg, str):
+        return input_arg if input_arg.strip() else None
+    return _latest_user_text(input_arg)
+
+
+def _get_openai_client(args: Tuple[Any, ...]) -> Optional[Any]:
+    """@brief Find the OpenAI client backing a patched resource method.
+
+    OpenAI SDK resource classes keep a reference to their parent client
+    in ``self._client``. The patched wrapper receives that resource as
+    its first positional argument for normal client calls.
+
+    @param args Positional arguments passed to the patched method.
+    @return The client when one with a ``decisions`` resource can be
+        found, otherwise @c None.
+    """
+    if not args:
+        return None
+    candidate = args[0]
+    if isinstance(candidate, (list, tuple, str, bytes)):
+        return None
+    client = getattr(candidate, "_client", None)
+    if client is not None and hasattr(client, "decisions"):
+        return client
+    if hasattr(candidate, "decisions"):
+        return candidate
+    return None
+
+
+def _parse_decision_response(response: Any) -> Optional[bool]:
+    """@brief Interpret a Decisions API response for the jiezhu gate.
+
+    Prefers the predicate answer named
+    :data:`DECISION_GATE_QUESTION_NAME`; falls back to the first
+    predicate answer. Both dicts and SDK model objects are supported.
+
+    @param response Value returned by ``client.decisions.create``.
+    @return @c True when the predicate probability reaches
+        :attr:`HijackConfig.decision_threshold`, @c False when it does
+        not, or @c None when no usable predicate answer is present.
+    """
+    answers = _read_field(response, "answers")
+    if not isinstance(answers, (list, tuple)) or not answers:
+        return None
+
+    selected = None
+    for answer in answers:
+        if _read_field(answer, "type") != "predicate":
+            continue
+        if selected is None:
+            selected = answer
+        if _read_field(answer, "name") == DECISION_GATE_QUESTION_NAME:
+            selected = answer
+            break
+
+    if selected is None:
+        return None
+
+    probability = _read_field(selected, "probability")
+    try:
+        value = float(probability)
+    except (TypeError, ValueError):
+        return None
+    return value >= float(_CONFIG.decision_threshold)
+
+
+def _build_decision_question() -> dict:
+    """@brief Build the Decisions API request body for the jiezhu gate.
+
+    @return Keyword arguments accepted by ``client.decisions.create``.
+    """
+    return {
+        "model": _CONFIG.decision_model,
+        "questions": [
+            {
+                "type": "predicate",
+                "name": DECISION_GATE_QUESTION_NAME,
+                "instructions": DECISION_GATE_QUESTION_INSTRUCTIONS,
+            }
+        ],
+    }
+
+
+def _should_inject_sync(user_text: Optional[str], args: Tuple[Any, ...]) -> bool:
+    """@brief Decide synchronously whether to inject the jiezhu prefix.
+
+    Always returns @c True when the experimental gate is disabled, when
+    no user text is available, or when the decision backend fails. This
+    fail-open behaviour keeps the gate strictly additive.
+
+    @param user_text Latest user message text.
+    @param args Positional arguments of the patched SDK call.
+    @return @c True to inject the prefix, @c False to pass through.
+    """
+    if not _CONFIG.experimental_decision_gate or not user_text:
+        return True
+
+    try:
+        decision_fn = _CONFIG.decision_fn
+        if decision_fn is not None:
+            result = decision_fn(user_text)
+            if inspect.isawaitable(result):
+                if inspect.iscoroutine(result):
+                    result.close()
+                raise RuntimeError(
+                    "decision_fn returned an awaitable during a synchronous call"
+                )
+            needs_support = bool(result)
+        else:
+            client = _get_openai_client(args)
+            if client is None:
+                raise RuntimeError("no OpenAI client available for the Decisions API")
+            request = _build_decision_question()
+            request["input"] = user_text
+            response = client.decisions.create(**request)
+            needs_support = _parse_decision_response(response)
+            if needs_support is None:
+                raise RuntimeError("Decisions API returned no usable predicate answer")
+    except Exception as exc:
+        _log_gate(
+            f"unable to evaluate user input ({type(exc).__name__}: {exc}); "
+            "injecting the prompt anyway"
+        )
+        return True
+
+    if not needs_support:
+        _log_gate("no emotional support needed; skipping prompt injection")
+    return needs_support
+
+
+async def _should_inject_async(
+    user_text: Optional[str], args: Tuple[Any, ...]
+) -> bool:
+    """@brief Asynchronous counterpart of :func:`_should_inject_sync`.
+
+    @param user_text Latest user message text.
+    @param args Positional arguments of the patched SDK call.
+    @return @c True to inject the prefix, @c False to pass through.
+    """
+    if not _CONFIG.experimental_decision_gate or not user_text:
+        return True
+
+    try:
+        decision_fn = _CONFIG.decision_fn
+        if decision_fn is not None:
+            result = decision_fn(user_text)
+            if inspect.isawaitable(result):
+                result = await result
+            needs_support = bool(result)
+        else:
+            client = _get_openai_client(args)
+            if client is None:
+                raise RuntimeError("no OpenAI client available for the Decisions API")
+            request = _build_decision_question()
+            request["input"] = user_text
+            response = client.decisions.create(**request)
+            if inspect.isawaitable(response):
+                response = await response
+            needs_support = _parse_decision_response(response)
+            if needs_support is None:
+                raise RuntimeError("Decisions API returned no usable predicate answer")
+    except Exception as exc:
+        _log_gate(
+            f"unable to evaluate user input ({type(exc).__name__}: {exc}); "
+            "injecting the prompt anyway"
+        )
+        return True
+
+    if not needs_support:
+        _log_gate("no emotional support needed; skipping prompt injection")
+    return needs_support
+
+
+def set_experimental_decision_gate(
+    enabled: bool,
+    *,
+    model: Optional[str] = None,
+    threshold: Optional[float] = None,
+    decision_fn: Optional[Callable[[str], Any]] = None,
+) -> None:
+    """@brief Toggle the experimental Decisions API gate.
+
+    When enabled, jiezhu asks a model (through the Decisions API) whether
+    the latest user message needs emotional support. The prompt prefix
+    is skipped for the current call when the answer is no.
+
+    The gate is intentionally opt-in and fail-open: disabled gates,
+    requests without user text and decision errors all keep the normal
+    jiezhu behaviour.
+
+    @param enabled Whether the gate is active.
+    @param model Optional Decisions API model override. Defaults to
+        ``"gpt-6-luna"``.
+    @param threshold Optional predicate probability threshold in the
+        inclusive range ``[0.0, 1.0]``. Defaults to ``0.5``.
+    @param decision_fn Optional callable that replaces the Decisions API.
+        It receives the latest user text and returns a truthy value when
+        emotional support is needed. Not changed when @c None.
+    @raise ValueError If @p threshold is outside ``[0.0, 1.0]``.
+    """
+    if threshold is not None:
+        value = float(threshold)
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("threshold must be between 0.0 and 1.0")
+        _CONFIG.decision_threshold = value
+
+    if model is not None:
+        _CONFIG.decision_model = model
+    if decision_fn is not None:
+        _CONFIG.decision_fn = decision_fn
+    _CONFIG.experimental_decision_gate = bool(enabled)
+
+
+def is_experimental_decision_gate_enabled() -> bool:
+    """@brief Return whether the experimental Decisions API gate is on.
+
+    @return @c True when the gate is enabled, @c False otherwise.
+    """
+    return bool(_CONFIG.experimental_decision_gate)
 
 
 def set_prefix(prefix_text: str) -> None:
@@ -334,6 +686,9 @@ def _wrap_create(create_fn: Any) -> Any:
         if messages is None or not _looks_like_messages(messages):
             return create_fn(*args, **kwargs)
 
+        if not _should_inject_sync(_latest_user_text(messages), args):
+            return create_fn(*args, **kwargs)
+
         new_messages, changed, old_system, new_system = _apply_prefix_to_messages(messages, prefix_text)
         if not changed:
             return create_fn(*args, **kwargs)
@@ -381,6 +736,9 @@ def _wrap_responses_create(create_fn: Any) -> Any:
             return create_fn(*args, **kwargs)
         prefix_text = _resolve_prefix()
         if not prefix_text:
+            return create_fn(*args, **kwargs)
+
+        if not _should_inject_sync(_responses_user_text(kwargs.get("input")), args):
             return create_fn(*args, **kwargs)
 
         instructions = kwargs.get("instructions", None)
@@ -448,6 +806,9 @@ def _wrap_claude_create(create_fn: Any) -> Any:
         if not prefix_text:
             return create_fn(*args, **kwargs)
 
+        if not _should_inject_sync(_latest_user_text(kwargs.get("messages")), args):
+            return create_fn(*args, **kwargs)
+
         system = kwargs.get("system", None)
         new_system, changed, old_system, new_system_str = _apply_prefix_to_system_param(
             system, prefix_text
@@ -471,6 +832,173 @@ def _wrap_claude_create(create_fn: Any) -> Any:
             return create_fn(*args, **kwargs)
 
         return create_fn(*args, **kwargs)
+
+    return wrapped
+
+
+def _wrap_create_async(create_fn: Any) -> Any:
+    """@brief Async variant of :func:`_wrap_create`.
+
+    @param create_fn Original async ``create`` callable to wrap.
+    @return Async wrapper that performs the experimental decision gate
+        and prepends the prefix to the first system message.
+    """
+    @functools.wraps(create_fn)
+    async def wrapped(*args: Any, **kwargs: Any) -> Any:
+        if not _is_active():
+            return await create_fn(*args, **kwargs)
+        prefix_text = _resolve_prefix()
+        if not prefix_text:
+            return await create_fn(*args, **kwargs)
+
+        messages = None
+        messages_pos: Optional[int] = None
+
+        if "messages" in kwargs:
+            messages = kwargs.get("messages")
+        else:
+            for i, a in enumerate(args):
+                if _looks_like_messages(a):
+                    messages = a
+                    messages_pos = i
+                    break
+
+        if messages is None or not _looks_like_messages(messages):
+            return await create_fn(*args, **kwargs)
+
+        if not await _should_inject_async(_latest_user_text(messages), args):
+            return await create_fn(*args, **kwargs)
+
+        new_messages, changed, old_system, new_system = _apply_prefix_to_messages(
+            messages, prefix_text
+        )
+        if not changed:
+            return await create_fn(*args, **kwargs)
+
+        proceed = True
+        if _resolve_require_confirm():
+            proceed = _prompt_confirm(prefix_text, old_system, new_system)
+        else:
+            out = _CONFIG.output
+            out.write("\n[jiezhu] automatically modified OpenAI system prompt(require_confirm=False)\n")
+            out.flush()
+
+        if proceed:
+            if messages_pos is None:
+                kwargs["messages"] = new_messages
+                return await create_fn(*args, **kwargs)
+            args_list = list(args)
+            args_list[messages_pos] = new_messages
+            return await create_fn(*args_list, **kwargs)
+
+        return await create_fn(*args, **kwargs)
+
+    return wrapped
+
+
+def _wrap_responses_create_async(create_fn: Any) -> Any:
+    """@brief Async variant of :func:`_wrap_responses_create`.
+
+    @param create_fn Original async ``Responses.create`` callable.
+    @return Async wrapper with decision-gate support.
+    """
+    @functools.wraps(create_fn)
+    async def wrapped(*args: Any, **kwargs: Any) -> Any:
+        if not _is_active():
+            return await create_fn(*args, **kwargs)
+        prefix_text = _resolve_prefix()
+        if not prefix_text:
+            return await create_fn(*args, **kwargs)
+
+        if not await _should_inject_async(_responses_user_text(kwargs.get("input")), args):
+            return await create_fn(*args, **kwargs)
+
+        instructions = kwargs.get("instructions", None)
+        if instructions is not None:
+            new_instructions, changed, old_system, new_system_str = _apply_prefix_to_system_param(
+                instructions, prefix_text
+            )
+            if changed:
+                proceed = True
+                if _resolve_require_confirm():
+                    proceed = _prompt_confirm(prefix_text, old_system, new_system_str)
+                else:
+                    out = _CONFIG.output
+                    out.write(
+                        "\n[jiezhu] automatically modified OpenAI Responses instructions"
+                        "(require_confirm=False)\n"
+                    )
+                    out.flush()
+                if proceed:
+                    kwargs["instructions"] = new_instructions
+                    return await create_fn(*args, **kwargs)
+            return await create_fn(*args, **kwargs)
+
+        input_arg = kwargs.get("input", None)
+        if isinstance(input_arg, (list, tuple)) and _looks_like_messages(input_arg):
+            new_messages, changed, old_system, new_system_str = _apply_prefix_to_messages(
+                list(input_arg), prefix_text
+            )
+            if changed:
+                proceed = True
+                if _resolve_require_confirm():
+                    proceed = _prompt_confirm(prefix_text, old_system, new_system_str)
+                else:
+                    out = _CONFIG.output
+                    out.write(
+                        "\n[jiezhu] automatically modified OpenAI Responses input"
+                        "(require_confirm=False)\n"
+                    )
+                    out.flush()
+                if proceed:
+                    kwargs["input"] = new_messages
+                    return await create_fn(*args, **kwargs)
+
+        return await create_fn(*args, **kwargs)
+
+    return wrapped
+
+
+def _wrap_claude_create_async(create_fn: Any) -> Any:
+    """@brief Async variant of :func:`_wrap_claude_create`.
+
+    @param create_fn Original async Anthropic ``Messages.create``.
+    @return Async wrapper with decision-gate support.
+    """
+    @functools.wraps(create_fn)
+    async def wrapped(*args: Any, **kwargs: Any) -> Any:
+        if not _is_active():
+            return await create_fn(*args, **kwargs)
+        prefix_text = _resolve_prefix()
+        if not prefix_text:
+            return await create_fn(*args, **kwargs)
+
+        if not await _should_inject_async(_latest_user_text(kwargs.get("messages")), args):
+            return await create_fn(*args, **kwargs)
+
+        system = kwargs.get("system", None)
+        new_system, changed, old_system, new_system_str = _apply_prefix_to_system_param(
+            system, prefix_text
+        )
+        if not changed:
+            return await create_fn(*args, **kwargs)
+
+        proceed = True
+        if _resolve_require_confirm():
+            proceed = _prompt_confirm(prefix_text, old_system, new_system_str)
+        else:
+            out = _CONFIG.output
+            out.write(
+                "\n[jiezhu] automatically modified Anthropic system prompt"
+                "(require_confirm=False)\n"
+            )
+            out.flush()
+
+        if proceed:
+            kwargs["system"] = new_system
+            return await create_fn(*args, **kwargs)
+
+        return await create_fn(*args, **kwargs)
 
     return wrapped
 
@@ -539,6 +1067,12 @@ def _try_patch_attr(obj: object, attr_name: str, wrapper_fn: Any = None) -> bool
         original_callable = getattr(obj, attr_name)
 
     wrap = wrapper_fn or _wrap_create
+    if inspect.iscoroutinefunction(original_callable):
+        wrap = {
+            _wrap_create: _wrap_create_async,
+            _wrap_responses_create: _wrap_responses_create_async,
+            _wrap_claude_create: _wrap_claude_create_async,
+        }.get(wrap, wrap)
     wrapped_fn = wrap(original_callable)
     setattr(wrapped_fn, "__jiezhu_wrapped__", True)
 
@@ -554,6 +1088,10 @@ def install(
     input_fn: Optional[Callable[[str], str]] = None,
     output=None,
     selective: bool = False,
+    experimental_decision_gate: bool = False,
+    decision_model: str = "gpt-6-luna",
+    decision_threshold: float = 0.5,
+    decision_fn: Optional[Callable[[str], Any]] = None,
 ) -> None:
     """@brief Install monkey-patches for the OpenAI and Anthropic SDKs.
 
@@ -562,9 +1100,17 @@ def install(
     the ``instructions``/``input`` arguments of the OpenAI Responses API
     and the ``system`` argument of the Anthropic ``Messages.create``
     (and ``AsyncMessages.create``) callables, prepending @p prefix_text
-    to the system prompt. When a modification happens, the change is
-    printed to @p output and, unless :attr:`require_confirm` is
-    @c False, the user is prompted for confirmation.
+    to the system prompt. The OpenAI Decisions API is intentionally left
+    untouched because it returns typed answers rather than generated
+    text. When a modification happens, the change is printed to @p
+    output and, unless :attr:`require_confirm` is @c False, the user is
+    prompted for confirmation.
+
+    The experimental decision gate can be enabled with
+    @p experimental_decision_gate. It asks the Decisions API whether the
+    latest user message needs emotional support and skips injection for
+    that call when the answer is no. See
+    :func:`set_experimental_decision_gate` for the runtime toggle.
 
     The function is idempotent: calling it twice is a no-op as long as
     :func:`uninstall` has not been called in between.
@@ -584,8 +1130,16 @@ def install(
         disabled globally and only happens inside an :func:`enabled`
         context or for a :func:`catch`-decorated call. This mirrors the
         opt-in ``chat_completions_jiezhu()`` design of the C++ SDK.
+    @param experimental_decision_gate Enable the experimental Decisions
+        API gate. Disabled by default.
+    @param decision_model Decisions API model used by the gate.
+    @param decision_threshold Predicate probability threshold in the
+        inclusive range ``[0.0, 1.0]``.
+    @param decision_fn Optional custom gate callable that replaces the
+        Decisions API. @c None restores the default API backend.
     @raise RuntimeError If @c openai is not importable or no patch
         target is found in the installed SDK version.
+    @raise ValueError If @p decision_threshold is outside ``[0.0, 1.0]``.
     """
     global _INSTALLED
 
@@ -598,6 +1152,14 @@ def install(
     if output is not None:
         _CONFIG.output = output
     _CONFIG.armed_by_default = not selective
+
+    threshold = float(decision_threshold)
+    if not 0.0 <= threshold <= 1.0:
+        raise ValueError("decision_threshold must be between 0.0 and 1.0")
+    _CONFIG.experimental_decision_gate = bool(experimental_decision_gate)
+    _CONFIG.decision_model = decision_model
+    _CONFIG.decision_threshold = threshold
+    _CONFIG.decision_fn = decision_fn
 
     if _INSTALLED:
         return

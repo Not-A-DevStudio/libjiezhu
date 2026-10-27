@@ -1,0 +1,13 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c0d5724..f0a0705 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -710,7 +710,7 @@ if(CURL_DEFAULT_SSL_BACKEND)
+ endif()
+ 
+ if(WIN32)
+-  cmake_dependent_option(CURL_USE_SCHANNEL "Enable Windows native SSL/TLS (Schannel)" OFF CURL_ENABLE_SSL OFF)
++  cmake_dependent_option(CURL_USE_SCHANNEL "Enable Windows native SSL/TLS (Schannel)" ON CURL_ENABLE_SSL OFF)
+   option(CURL_WINDOWS_SSPI "Enable SSPI on Windows" ${CURL_USE_SCHANNEL})
+ else()
+   set(CURL_USE_SCHANNEL OFF)

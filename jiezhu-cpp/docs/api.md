@@ -90,6 +90,9 @@ Fields：
 - `long timeout_seconds = 300`：curl timeout (seconds)
 - `std::string organization`：If non-empty, sends header `OpenAI-Organization: ...`
 - `std::string project`：If non-empty, sends header `OpenAI-Project: ...`
+- `bool experimental_decision_gate = false`：Experimental. When enabled, the jiezhu variants ask the Decisions API whether the latest user message needs emotional support and skip prompt injection when it does not.
+- `std::string decision_model = "gpt-6-luna"`：Model used by the experimental decision gate.
+- `double decision_threshold = 0.5`：Predicate probability at or above which the jiezhu prefix is injected.
 
 it supports initialization via aggregate initialization, e.g.:
 
@@ -295,6 +298,149 @@ Behavior:
 - Errors: same as `responses_stream`
 - If `JIE_ENABLE_JIEZHU_ABLITY` is not defined, throws `std::runtime_error`
 
-## 3) Aggregated Header
+## 5) Decisions API
+
+The [OpenAI Decisions API](https://developers.openai.com/api/docs/guides/decisions) returns typed
+answers (probabilities, choices and scores) instead of generated text. Jiezhu exposes it as a
+pure call only. There is intentionally **no** `decisions_jiezhu` variant: injecting an empathetic
+system prompt would not change probabilities or scores, so `decisions_create` never modifies the
+request.
+
+### `struct decision_choice`
+
+One option for a `choice` question.
+
+Fields:
+
+- `nlohmann::json value` — Option value. The API accepts a string or a boolean.
+- `std::string description` — Optional explanation of when the option applies.
+
+Constructors:
+
+- `decision_choice()`
+- `decision_choice(const std::string& v, const std::string& d = "")`
+- `decision_choice(bool v, const std::string& d = "")`
+
+### `struct decision_level`
+
+One ordered level for a `score` question.
+
+Fields:
+
+- `std::string label` — Level label (required)
+- `std::string description` — Optional description of the level criteria
+
+### `struct decision_question`
+
+A single question in a Decisions request.
+
+Fields:
+
+- `std::string type` — `"predicate"`, `"choice"` or `"score"`
+- `std::string name` — Optional unique name echoed back in the answer
+- `std::string instructions` — Natural-language instructions for the model
+- `std::vector<decision_choice> choices` — Options for a `choice` question
+- `std::vector<decision_level> levels` — Ordered levels for a `score` question
+- `nlohmann::json extra = object()` — Forward-compat bucket for additional question fields
+
+### `struct decision_input_message`
+
+One message in the Decisions `input` array.
+
+Fields:
+
+- `std::string role` — Typically `"user"`, `"developer"` or `"assistant"`
+- `nlohmann::json content` — A string, or an array of content parts such as
+  `{"type":"input_text","text":"..."}` and `{"type":"input_image","image_url":"..."}`
+- `nlohmann::json extra = object()` — Forward-compat bucket for additional message fields
+
+Constructors:
+
+- `decision_input_message()`
+- `decision_input_message(const std::string& r, const std::string& c)`
+- `decision_input_message(const std::string& r, const nlohmann::json& c)`
+
+### `struct decision_request`
+
+Request body for `/v1/decisions`.
+
+Fields:
+
+- `std::string model` — Model identifier (the API currently requires `"gpt-6-luna"`)
+- `std::string input_text` — Plain-text input. When non-empty, takes precedence over `input_messages`
+- `std::vector<decision_input_message> input_messages` — Structured input messages (text and images)
+- `std::vector<decision_question> questions` — Questions to evaluate against the shared input
+- `nlohmann::json extra = object()` — Forward-compat bucket for additional fields
+
+Methods:
+
+- `nlohmann::json to_json() const` — Serializes the request; `extra` is used as the base object,
+  then `model`, `input` and `questions` are written.
+
+### `struct decision_answer`
+
+One typed answer.
+
+Fields:
+
+- `nlohmann::json raw` — Complete answer object from the server
+- `std::string type` — `"predicate"`, `"choice"`, `"score"` or `"refusal"`
+- `std::string name` — Question name echoed by the server
+- `std::optional<double> probability` — Set for `predicate` answers
+- `nlohmann::json choice` — Selected value for `choice` answers (string or bool)
+- `std::optional<double> score` — Probability-weighted score for `score` answers
+- `std::optional<double> confidence` — Confidence for `choice` / `score` answers
+- `nlohmann::json probabilities` — Raw probability distribution for choice/score answers
+
+### `struct decision_response`
+
+Non-streaming Decisions response.
+
+Fields:
+
+- `nlohmann::json raw` — Raw JSON response from the server
+- `std::string model` — Best-effort extraction of `model`
+- `std::vector<decision_answer> answers` — Parsed answers, in question order
+
+### `class client` — Decisions API Methods
+
+1. `decision_response decisions_create(const decision_request& request) const`
+
+Behavior:
+
+- POST to: `{base_url}/decisions`
+- Headers: same as `chat_completions_create` (`Content-Type`, `Accept`, `Authorization`,
+  `OpenAI-Organization`, `OpenAI-Project`)
+- Parses the `answers` array into `decision_answer` values
+- Does not inject any jiezhu prompt and has no jiezhu variant
+- Errors: same as `chat_completions_create`
+
+## 6) Experimental: Decisions API gate
+
+The jiezhu variants can optionally ask the Decisions API whether the
+latest user message actually needs emotional support. Enable the gate on
+`client_options`:
+
+```cpp
+jie::client_options opt;
+opt.api_key = "sk-xxx";
+opt.experimental_decision_gate = true;  // default: false
+opt.decision_model = "gpt-6-luna";      // default
+opt.decision_threshold = 0.5;           // default
+jie::client c(opt);
+```
+
+When enabled, `chat_completions_jiezhu`, its Anthropic and streaming
+variants, and `responses_jiezhu` call `{base_url}/decisions` with a
+`needs_emotional_support` predicate before injecting the prefix. If the
+predicate probability is below `decision_threshold`, the request is sent
+without the jiezhu prefix. The gate is fail-open: requests without user
+text, missing predicate answers and Decisions API errors all keep the
+normal prefix injection.
+
+> The gate requires an endpoint that supports both the chat/Responses
+> API and the Decisions API. It is off by default.
+
+## 7) Aggregated Header
 
 - `jie/jiezhu.hpp` currently only `#include <jie/chat.hpp>`, providing a stable entry point for callers.

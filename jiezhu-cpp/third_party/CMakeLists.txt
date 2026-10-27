@@ -1,5 +1,5 @@
-add_subdirectory(curl-8.17.0)
-add_subdirectory(nlohmann_json-3.12.0)
+add_subdirectory(curl)
+add_subdirectory(nlohmann_json)
 if(JIEZHU_BUILD_TEST)
-    add_subdirectory(Catch2-3.12.0)
+    add_subdirectory(Catch2)
 endif()

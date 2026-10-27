@@ -236,6 +236,78 @@ namespace jie {
         return std::string();
     }
 
+    /// @brief Serialize a Decisions API choice option.
+    /// @return JSON object containing @c value and an optional
+    /// @c description.
+    nlohmann::json decision_choice::to_json() const {
+        nlohmann::json j = nlohmann::json::object();
+        j["value"] = value;
+        if (!description.empty()) j["description"] = description;
+        return j;
+    }
+
+    /// @brief Serialize a Decisions API score level.
+    /// @return JSON object containing @c label and an optional
+    /// @c description.
+    nlohmann::json decision_level::to_json() const {
+        nlohmann::json j = nlohmann::json::object();
+        j["label"] = label;
+        if (!description.empty()) j["description"] = description;
+        return j;
+    }
+
+    /// @brief Serialize a Decisions API question.
+    /// @return JSON object containing @c type, optional @c name,
+    /// @c instructions and the type-specific @c choices / @c levels.
+    nlohmann::json decision_question::to_json() const {
+        nlohmann::json j = extra.is_object() ? extra : nlohmann::json::object();
+        j["type"] = type;
+        if (!name.empty()) j["name"] = name;
+        if (!instructions.empty()) j["instructions"] = instructions;
+        if (!choices.empty()) {
+            j["choices"] = nlohmann::json::array();
+            for (const auto &choice: choices) {
+                j["choices"].push_back(choice.to_json());
+            }
+        }
+        if (!levels.empty()) {
+            j["levels"] = nlohmann::json::array();
+            for (const auto &level: levels) {
+                j["levels"].push_back(level.to_json());
+            }
+        }
+        return j;
+    }
+
+    /// @brief Serialize a Decisions API input message.
+    /// @return JSON object containing @c role and @c content.
+    nlohmann::json decision_input_message::to_json() const {
+        nlohmann::json j = extra.is_object() ? extra : nlohmann::json::object();
+        j["role"] = role;
+        j["content"] = content;
+        return j;
+    }
+
+    /// @brief Serialize a Decisions API request.
+    /// @return JSON object containing @c model, @c input and @c questions.
+    nlohmann::json decision_request::to_json() const {
+        nlohmann::json j = extra.is_object() ? extra : nlohmann::json::object();
+        j["model"] = model;
+        if (!input_text.empty()) {
+            j["input"] = input_text;
+        } else if (!input_messages.empty()) {
+            j["input"] = nlohmann::json::array();
+            for (const auto &message: input_messages) {
+                j["input"].push_back(message.to_json());
+            }
+        }
+        j["questions"] = nlohmann::json::array();
+        for (const auto &question: questions) {
+            j["questions"].push_back(question.to_json());
+        }
+        return j;
+    }
+
     /**
      * @brief libcurl @c WRITEFUNCTION callback that appends the received
      * bytes to a caller-provided @c std::string.
@@ -694,6 +766,179 @@ namespace jie {
         }
     }
 
+    /**
+     * @brief Blocking OpenAI Decisions API call.
+     *
+     * POSTs the request to @c {base_url}/decisions and parses the JSON
+     * response into typed answers. Non-2xx responses are converted to a
+     * @c std::runtime_error carrying the status and body.
+     * @param request The request to send.
+     * @return Parsed response.
+     * @throw std::runtime_error On transport failure or non-2xx HTTP.
+     */
+    decision_response client::decisions_create(const decision_request &request) const {
+        ensure_curl_global();
+
+        CURL *curl = curl_easy_init();
+        if (!curl) throw std::runtime_error("curl_easy_init failed");
+
+        struct curl_slist *headers = NULL;
+        std::string response_body;
+        long http_code = 0;
+
+        try {
+            const std::string url = options_.base_url + "/decisions";
+            const std::string payload = request.to_json().dump();
+
+            set_common_headers(options_, &headers);
+            headers = curl_slist_append(headers, "Accept: application/json");
+
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(payload.size()));
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT, options_.timeout_seconds);
+
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+
+            CURLcode rc = curl_easy_perform(curl);
+            if (rc != CURLE_OK) {
+                std::string msg = std::string("curl_easy_perform failed: ") + curl_easy_strerror(rc);
+                throw std::runtime_error(msg);
+            }
+
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+            if (http_code < 200 || http_code >= 300) {
+                throw_http_error(http_code, response_body);
+            }
+
+            decision_response resp;
+            resp.raw = nlohmann::json::parse(response_body);
+            if (resp.raw.contains("model") && resp.raw["model"].is_string())
+                resp.model = resp.raw["model"].get<std::string>();
+
+            if (resp.raw.contains("answers") && resp.raw["answers"].is_array()) {
+                for (const auto &item: resp.raw["answers"]) {
+                    decision_answer answer;
+                    answer.raw = item;
+                    if (item.contains("type") && item["type"].is_string())
+                        answer.type = item["type"].get<std::string>();
+                    if (item.contains("name") && item["name"].is_string())
+                        answer.name = item["name"].get<std::string>();
+                    if (item.contains("probability") && item["probability"].is_number())
+                        answer.probability = item["probability"].get<double>();
+                    if (item.contains("choice")) answer.choice = item["choice"];
+                    if (item.contains("score") && item["score"].is_number())
+                        answer.score = item["score"].get<double>();
+                    if (item.contains("confidence") && item["confidence"].is_number())
+                        answer.confidence = item["confidence"].get<double>();
+                    if (item.contains("probabilities"))
+                        answer.probabilities = item["probabilities"];
+                    resp.answers.push_back(std::move(answer));
+                }
+            }
+
+            curl_slist_free_all(headers);
+            curl_easy_cleanup(curl);
+            return resp;
+        } catch (...) {
+            if (headers) curl_slist_free_all(headers);
+            curl_easy_cleanup(curl);
+            throw;
+        }
+    }
+
+    namespace {
+        /**
+         * @brief Find the latest non-empty user message in a list.
+         * @param messages Chat message list to scan.
+         * @return Latest user text, or an empty string.
+         */
+        std::string latest_user_text_impl(const std::vector<message> &messages) {
+            for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
+                if (it->role == "user" && !it->content.empty()) {
+                    return it->content;
+                }
+            }
+            return {};
+        }
+    }
+
+    /**
+     * @brief Extract the latest user message from a chat request.
+     * @param request Chat request to inspect.
+     * @return Latest user text, or an empty string.
+     */
+    std::string client::latest_user_text(const chat_completion_request &request) {
+        return latest_user_text_impl(request.messages);
+    }
+
+    /**
+     * @brief Extract the latest user text from a Responses request.
+     * @param request Responses request to inspect.
+     * @return Latest user text, or an empty string.
+     */
+    std::string client::latest_user_text(const response_request &request) {
+        if (!request.input_text.empty()) {
+            return request.input_text;
+        }
+        return latest_user_text_impl(request.input_messages);
+    }
+
+    /**
+     * @brief Ask the Decisions API whether jiezhu should be applied.
+     *
+     * The predicate answer named @c needs_emotional_support determines
+     * the result. Disabled gates, empty user text, missing answers and
+     * transport errors all fail open (return @c true).
+     * @param user_text Latest user message text.
+     * @return @c true to inject the prompt prefix, @c false to skip.
+     */
+    bool client::user_needs_jiezhu(const std::string &user_text) const {
+        if (!options_.experimental_decision_gate || user_text.empty()) {
+            return true;
+        }
+
+        decision_request request;
+        request.model = options_.decision_model;
+        request.input_text = user_text;
+
+        decision_question question;
+        question.type = "predicate";
+        question.name = "needs_emotional_support";
+        question.instructions =
+            "Determine whether the user's latest message is seeking emotional "
+            "support, comfort, empathy, or companionship. Return true if the user "
+            "is expressing negative emotions, venting about a problem, seeking "
+            "understanding, or asking to be treated gently. Return false if the "
+            "user is only asking for facts, troubleshooting a technical issue, "
+            "giving a task instruction, or making ordinary small talk.";
+        request.questions.push_back(question);
+
+        try {
+            const decision_response response = decisions_create(request);
+            const decision_answer *selected = nullptr;
+            for (const auto &answer: response.answers) {
+                if (answer.type != "predicate") continue;
+                if (selected == nullptr) {
+                    selected = &answer;
+                }
+                if (answer.name == question.name) {
+                    selected = &answer;
+                    break;
+                }
+            }
+            if (selected == nullptr || !selected->probability.has_value()) {
+                return true;
+            }
+            return *selected->probability >= options_.decision_threshold;
+        } catch (const std::exception &) {
+            return true;
+        }
+    }
+
     // ───── Responses API: SSE streaming ─────
 
     /**
@@ -884,6 +1129,9 @@ namespace jie {
     chat_completion_response client::chat_completions_jiezhu(
         const chat_completion_request &request)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return chat_completions_create(request);
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -907,6 +1155,9 @@ namespace jie {
         const chat_completion_request &request,
         const std::string &prompt_prefix)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return chat_completions_create(request);
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -928,6 +1179,9 @@ namespace jie {
         const chat_completion_request &request)
     const
     {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return chat_completions_create_anthropic(request);
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -950,6 +1204,9 @@ namespace jie {
         const chat_completion_request &request,
         const std::string &prompt_prefix)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return chat_completions_create_anthropic(request);
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -973,6 +1230,10 @@ namespace jie {
         const chat_completion_request &request,
         const std::function<bool(const chat_completion_stream_event &)> &on_event)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            chat_completions_stream(request, on_event);
+            return;
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -997,6 +1258,10 @@ namespace jie {
         const std::string &prompt_prefix,
         const std::function<bool(const chat_completion_stream_event &)> &on_event)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            chat_completions_stream(request, on_event);
+            return;
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -1040,6 +1305,9 @@ namespace jie {
     response_response client::responses_jiezhu(
         const response_request &request)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return responses_create(request);
+        }
         auto temp = request;
         inject_jiezhu_prefix(temp, _default_prompt_prefix);
         return responses_create(temp);
@@ -1060,6 +1328,9 @@ namespace jie {
         const response_request &request,
         const std::string &prompt_prefix)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return responses_create(request);
+        }
         auto temp = request;
         inject_jiezhu_prefix(temp, prompt_prefix);
         return responses_create(temp);
@@ -1079,6 +1350,10 @@ namespace jie {
         const response_request &request,
         const std::function<bool(const response_stream_event &)> &on_event)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            responses_stream(request, on_event);
+            return;
+        }
         auto temp = request;
         inject_jiezhu_prefix(temp, _default_prompt_prefix);
         responses_stream(temp, on_event);
@@ -1100,6 +1375,10 @@ namespace jie {
         const std::string &prompt_prefix,
         const std::function<bool(const response_stream_event &)> &on_event)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            responses_stream(request, on_event);
+            return;
+        }
         auto temp = request;
         inject_jiezhu_prefix(temp, prompt_prefix);
         responses_stream(temp, on_event);

@@ -53,6 +53,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Apply curl Schannel patch
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: pwsh
+        run: git -C jiezhu-cpp/third_party/curl apply --ignore-whitespace ../../patches/curl-schannel-on-windows.patch
 
       - name: Configure and build on Linux (gcc)
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -63,7 +70,13 @@ jobs:
           cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci \
             -DCMAKE_BUILD_TYPE=Release \
             -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} \
-            -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }}
+            -DJIEZHU_BUILD_TEST=OFF \
+            -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }} \
+            -DCURL_USE_LIBPSL=OFF \
+            -DBUILD_CURL_EXE=OFF \
+            -DBUILD_LIBCURL_DOCS=OFF \
+            -DBUILD_MISC_DOCS=OFF \
+            -DENABLE_CURL_MANUAL=OFF
           cmake --build jiezhu-cpp/build-ci --config Release
 
       - name: Add MSBuild to PATH
@@ -74,8 +87,25 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
         run: |
-          cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }}
+          cmake -S jiezhu-cpp -B jiezhu-cpp/build-ci `
+            -DJIEZHU_BUILD_STATIC=${{ matrix.build_static }} `
+            -DJIEZHU_BUILD_TEST=OFF `
+            -DJIEZHU_ENABLE_JIEZHU_ABILITY=${{ matrix.enable_ability }} `
+            -DCURL_USE_LIBPSL=OFF `
+            -DBUILD_CURL_EXE=OFF `
+            -DBUILD_LIBCURL_DOCS=OFF `
+            -DBUILD_MISC_DOCS=OFF `
+            -DENABLE_CURL_MANUAL=OFF
           cmake --build jiezhu-cpp/build-ci --config Release
+
+      - name: Verify Schannel backend
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: pwsh
+        run: |
+          $config = "jiezhu-cpp/build-ci/third_party/curl/lib/curl_config.h"
+          if (-not (Select-String -Path $config -Pattern '^#define USE_SCHANNEL 1' -Quiet)) {
+            throw "Schannel backend was not enabled"
+          }
 
       - name: Package Linux binaries
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -143,6 +173,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set release metadata
         id: metadata
@@ -164,9 +196,26 @@ jobs:
           echo "release_name=${TAG}-packages" >> "$GITHUB_OUTPUT"
 
       - name: Create source code archives
+        shell: bash
         run: |
-          zip -r jiezhu-cpp.zip jiezhu-cpp
-          zip -r jiezhu-py.zip jiezhu-py
+          set -euo pipefail
+
+          mkdir -p source/jiezhu-cpp source/jiezhu-py
+
+          # git archive packs only tracked files, so ignored and generated
+          # files are excluded automatically.
+          git archive --format=tar HEAD:jiezhu-cpp | tar -x -C source/jiezhu-cpp
+          git archive --format=tar HEAD:jiezhu-py | tar -x -C source/jiezhu-py
+
+          # Bundle the pinned submodule sources into the C++ archive.
+          git submodule foreach --recursive '
+            set -e
+            mkdir -p "$toplevel/source/$displaypath"
+            git archive --format=tar HEAD | tar -x -C "$toplevel/source/$displaypath"
+          '
+
+          (cd source && zip -r ../jiezhu-cpp.zip jiezhu-cpp)
+          (cd source && zip -r ../jiezhu-py.zip jiezhu-py)
 
       - name: Download compiled binary packages
         uses: actions/download-artifact@v4
