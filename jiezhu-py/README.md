@@ -100,6 +100,57 @@ You can customize the system prompt prefix by passing a `prefix_text` argument t
 
 > Attention: if your environment does not support interreactive input (e.g. Jupyter Notebook), please set `require_confirm=False` when calling `install()`, otherwise the library will not work.
 
+## Experimental: Decisions API gate
+
+By default the prefix is injected on every intercepted call. The
+experimental decision gate asks a model through the
+[OpenAI Decisions API](https://developers.openai.com/api/docs/guides/decisions)
+whether the latest user message actually needs emotional support. When
+the predicate probability is below the threshold, the request is sent
+without the jiezhu prefix.
+
+```python
+from jiezhu import install, set_experimental_decision_gate
+
+install(require_confirm=False)
+
+# model defaults to "gpt-6-luna", threshold defaults to 0.5
+set_experimental_decision_gate(True)
+```
+
+The gate can also be enabled during installation:
+
+```python
+install(
+    require_confirm=False,
+    experimental_decision_gate=True,
+    decision_model="gpt-6-luna",
+    decision_threshold=0.5,
+)
+```
+
+The gate reuses the same OpenAI client as the intercepted call
+(`client.decisions.create`), so no extra credentials are needed. It is
+**fail-open**: disabled gates, calls without user text, malformed
+answers and Decisions API errors all keep the normal jiezhu behaviour.
+Requests that the model classifies as not needing emotional support are
+sent unchanged.
+
+The default backend is OpenAI-specific. For Anthropic-patched calls,
+provide a `decision_fn` (or point the client at an OpenAI-compatible
+endpoint that supports Decisions); otherwise the gate fails open and
+keeps injecting the prefix.
+
+For custom classifiers or tests, pass a callback. It receives the latest
+user message and returns a truthy value when support is needed:
+
+```python
+set_experimental_decision_gate(
+    True,
+    decision_fn=lambda text: my_classifier(text),
+)
+```
+
 ## Security and Privacy
 
 ### Security
@@ -112,7 +163,14 @@ Besides, this library **requires user to explicitly enable** by calling `install
 
 ### Privacy
 
-The library does not collect or transmit any user data, and it does not have any network communication of its own. It only modifies the request before it is sent to OpenAI's servers.
+The library does not collect or transmit any user data, and it does not
+have any network communication of its own **unless the experimental
+decision gate is enabled**. When the gate is enabled, the latest user
+message is sent to the Decisions endpoint through your existing OpenAI
+client so that a model can decide whether the message needs emotional
+support. Disable the gate with
+`set_experimental_decision_gate(False)` to restore the fully local
+prompt-only behaviour.
 
 ## Something Funny
 
