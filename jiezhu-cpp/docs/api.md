@@ -90,6 +90,9 @@ Fields：
 - `long timeout_seconds = 300`：curl timeout (seconds)
 - `std::string organization`：If non-empty, sends header `OpenAI-Organization: ...`
 - `std::string project`：If non-empty, sends header `OpenAI-Project: ...`
+- `bool experimental_decision_gate = false`：Experimental. When enabled, the jiezhu variants ask the Decisions API whether the latest user message needs emotional support and skip prompt injection when it does not.
+- `std::string decision_model = "gpt-6-luna"`：Model used by the experimental decision gate.
+- `double decision_threshold = 0.5`：Predicate probability at or above which the jiezhu prefix is injected.
 
 it supports initialization via aggregate initialization, e.g.:
 
@@ -412,6 +415,32 @@ Behavior:
 - Does not inject any jiezhu prompt and has no jiezhu variant
 - Errors: same as `chat_completions_create`
 
-## 6) Aggregated Header
+## 6) Experimental: Decisions API gate
+
+The jiezhu variants can optionally ask the Decisions API whether the
+latest user message actually needs emotional support. Enable the gate on
+`client_options`:
+
+```cpp
+jie::client_options opt;
+opt.api_key = "sk-xxx";
+opt.experimental_decision_gate = true;  // default: false
+opt.decision_model = "gpt-6-luna";      // default
+opt.decision_threshold = 0.5;           // default
+jie::client c(opt);
+```
+
+When enabled, `chat_completions_jiezhu`, its Anthropic and streaming
+variants, and `responses_jiezhu` call `{base_url}/decisions` with a
+`needs_emotional_support` predicate before injecting the prefix. If the
+predicate probability is below `decision_threshold`, the request is sent
+without the jiezhu prefix. The gate is fail-open: requests without user
+text, missing predicate answers and Decisions API errors all keep the
+normal prefix injection.
+
+> The gate requires an endpoint that supports both the chat/Responses
+> API and the Decisions API. It is off by default.
+
+## 7) Aggregated Header
 
 - `jie/jiezhu.hpp` currently only `#include <jie/chat.hpp>`, providing a stable entry point for callers.

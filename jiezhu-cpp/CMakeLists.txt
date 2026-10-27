@@ -109,13 +109,19 @@ if (JIEZHU_BUILD_TEST)
     message("JIEZHU: Build tests")
     include(CTest)
     if (BUILD_TESTING)
-        add_executable(jiezhu-tests
+        set(_JIEZHU_TEST_SOURCES
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_create_curl.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_stream_curl.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_errors_curl.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_anthropic_curl.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chat_decisions_curl.cpp
         )
+        if (JIEZHU_ENABLE_JIEZHU_ABILITY)
+            list(APPEND _JIEZHU_TEST_SOURCES
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_jiezhu_decision_gate.cpp
+            )
+        endif ()
+        add_executable(jiezhu-tests ${_JIEZHU_TEST_SOURCES})
         target_include_directories(jiezhu-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
         target_link_libraries(jiezhu-tests PRIVATE ${JIEZHU_LIB_NAME} Catch2::Catch2WithMain)
         if (WIN32)

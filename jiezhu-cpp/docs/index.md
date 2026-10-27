@@ -33,3 +33,4 @@ In this repository's CMake configuration, dependencies are built and linked as s
 
 - You have to enable the option `JIEZHU_ENABLE_JIEZHU_ABLITY` to use the modified OpenAI API ability of `jiezhu` (e.g., `chat_completions_jiezhu`), which will add a prefix to the system prompt. 
 - If you enable this option, the default name of your pre-built library will be `libjiezhu_full` instead of `libjiezhu`.
+- The experimental `client_options::experimental_decision_gate` is off by default. When enabled, the latest user message is sent to the Decisions API to decide whether the jiezhu prefix should be injected. See [api.md](./api.md#6-experimental-decisions-api-gate).

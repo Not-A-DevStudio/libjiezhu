@@ -850,6 +850,92 @@ namespace jie {
         }
     }
 
+    namespace {
+        /**
+         * @brief Find the latest non-empty user message in a list.
+         * @param messages Chat message list to scan.
+         * @return Latest user text, or an empty string.
+         */
+        std::string latest_user_text_impl(const std::vector<message> &messages) {
+            for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
+                if (it->role == "user" && !it->content.empty()) {
+                    return it->content;
+                }
+            }
+            return {};
+        }
+    }
+
+    /**
+     * @brief Extract the latest user message from a chat request.
+     * @param request Chat request to inspect.
+     * @return Latest user text, or an empty string.
+     */
+    std::string client::latest_user_text(const chat_completion_request &request) {
+        return latest_user_text_impl(request.messages);
+    }
+
+    /**
+     * @brief Extract the latest user text from a Responses request.
+     * @param request Responses request to inspect.
+     * @return Latest user text, or an empty string.
+     */
+    std::string client::latest_user_text(const response_request &request) {
+        if (!request.input_text.empty()) {
+            return request.input_text;
+        }
+        return latest_user_text_impl(request.input_messages);
+    }
+
+    /**
+     * @brief Ask the Decisions API whether jiezhu should be applied.
+     *
+     * The predicate answer named @c needs_emotional_support determines
+     * the result. Disabled gates, empty user text, missing answers and
+     * transport errors all fail open (return @c true).
+     * @param user_text Latest user message text.
+     * @return @c true to inject the prompt prefix, @c false to skip.
+     */
+    bool client::user_needs_jiezhu(const std::string &user_text) const {
+        if (!options_.experimental_decision_gate || user_text.empty()) {
+            return true;
+        }
+
+        decision_request request;
+        request.model = options_.decision_model;
+        request.input_text = user_text;
+
+        decision_question question;
+        question.type = "predicate";
+        question.name = "needs_emotional_support";
+        question.instructions =
+            "判断用户的最新消息是否在寻求情感支持、安慰、共情或陪伴。"
+            "如果用户在表达负面情绪、倾诉烦恼、寻求理解或被温柔回应，返回 true；"
+            "如果用户只是在询问事实、排查技术问题、下达任务指令或进行普通闲聊，返回 false。";
+        request.questions.push_back(question);
+
+        try {
+            const decision_response response = decisions_create(request);
+            const decision_answer *selected = nullptr;
+            for (const auto &answer: response.answers) {
+                if (answer.type != "predicate") continue;
+                if (selected == nullptr) {
+                    selected = &answer;
+                }
+                if (answer.name == question.name) {
+                    selected = &answer;
+                    break;
+                }
+            }
+            if (selected == nullptr || !selected->probability.has_value()) {
+                return true;
+            }
+            return *selected->probability >= options_.decision_threshold;
+        } catch (const std::exception &) {
+            return true;
+        }
+    }
+
     // ───── Responses API: SSE streaming ─────
 
     /**
@@ -1040,6 +1126,9 @@ namespace jie {
     chat_completion_response client::chat_completions_jiezhu(
         const chat_completion_request &request)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return chat_completions_create(request);
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -1063,6 +1152,9 @@ namespace jie {
         const chat_completion_request &request,
         const std::string &prompt_prefix)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return chat_completions_create(request);
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -1084,6 +1176,9 @@ namespace jie {
         const chat_completion_request &request)
     const
     {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return chat_completions_create_anthropic(request);
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -1106,6 +1201,9 @@ namespace jie {
         const chat_completion_request &request,
         const std::string &prompt_prefix)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return chat_completions_create_anthropic(request);
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -1129,6 +1227,10 @@ namespace jie {
         const chat_completion_request &request,
         const std::function<bool(const chat_completion_stream_event &)> &on_event)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            chat_completions_stream(request, on_event);
+            return;
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -1153,6 +1255,10 @@ namespace jie {
         const std::string &prompt_prefix,
         const std::function<bool(const chat_completion_stream_event &)> &on_event)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            chat_completions_stream(request, on_event);
+            return;
+        }
         auto temp = request;
         for (auto &message: temp.messages) {
             if (message.role != "system") continue;
@@ -1196,6 +1302,9 @@ namespace jie {
     response_response client::responses_jiezhu(
         const response_request &request)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return responses_create(request);
+        }
         auto temp = request;
         inject_jiezhu_prefix(temp, _default_prompt_prefix);
         return responses_create(temp);
@@ -1216,6 +1325,9 @@ namespace jie {
         const response_request &request,
         const std::string &prompt_prefix)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            return responses_create(request);
+        }
         auto temp = request;
         inject_jiezhu_prefix(temp, prompt_prefix);
         return responses_create(temp);
@@ -1235,6 +1347,10 @@ namespace jie {
         const response_request &request,
         const std::function<bool(const response_stream_event &)> &on_event)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            responses_stream(request, on_event);
+            return;
+        }
         auto temp = request;
         inject_jiezhu_prefix(temp, _default_prompt_prefix);
         responses_stream(temp, on_event);
@@ -1256,6 +1372,10 @@ namespace jie {
         const std::string &prompt_prefix,
         const std::function<bool(const response_stream_event &)> &on_event)
     const {
+        if (!user_needs_jiezhu(latest_user_text(request))) {
+            responses_stream(request, on_event);
+            return;
+        }
         auto temp = request;
         inject_jiezhu_prefix(temp, prompt_prefix);
         responses_stream(temp, on_event);

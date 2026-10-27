@@ -368,6 +368,20 @@ namespace jie {
         /// @brief Optional OpenAI project header value.
         std::string project;
 
+        /// @brief Experimental: gate jiezhu injection on the Decisions API.
+        ///
+        /// When @c true, the jiezhu variants ask the Decisions API
+        /// whether the latest user message needs emotional support and,
+        /// when the predicate probability is below
+        /// @ref decision_threshold, send the request without the
+        /// jiezhu prompt prefix. Requests without user text and
+        /// Decisions API failures fail open (the prefix is injected).
+        bool experimental_decision_gate = false;
+        /// @brief Model used by the experimental Decisions API gate.
+        std::string decision_model = "gpt-6-luna";
+        /// @brief Predicate probability threshold for the gate, in
+        /// the inclusive range @c [0.0, 1.0].
+        double decision_threshold = 0.5;
     };
 
     /// @brief Thin HTTP client for OpenAI / Anthropic chat-completion APIs.
@@ -558,6 +572,30 @@ namespace jie {
         [[nodiscard]] decision_response decisions_create(const decision_request &request) const;
 
     private:
+        /// @brief Return the latest non-empty user message text.
+        /// @param request Chat-completion request to inspect.
+        /// @return User text, or an empty string when unavailable.
+        [[nodiscard]] static std::string latest_user_text(
+            const chat_completion_request &request);
+
+        /// @brief Return the latest non-empty user text from a Responses
+        /// request.
+        /// @param request Responses request to inspect.
+        /// @return User text, or an empty string when unavailable.
+        [[nodiscard]] static std::string latest_user_text(
+            const response_request &request);
+
+        /// @brief Ask the Decisions API whether @p user_text needs
+        /// emotional support.
+        ///
+        /// Returns @c true when the experimental gate is disabled, when
+        /// @p user_text is empty, or when the Decisions API cannot be
+        /// reached, so the gate never blocks normal jiezhu behaviour.
+        /// @param user_text Latest user message text.
+        /// @return @c true to inject the jiezhu prefix, @c false to
+        /// skip injection for this call.
+        [[nodiscard]] bool user_needs_jiezhu(const std::string &user_text) const;
+
         /// @brief Configuration for this client.
         client_options options_;
     };
